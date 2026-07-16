@@ -6,7 +6,7 @@ import { extname, join, normalize, resolve } from "node:path";
 
 const rootDir = process.cwd();
 const env = await loadEnv();
-const port = Number(env.PORT || 8000);
+const port = Number(env.PORT || 8001);
 const dataDir = resolve(rootDir, env.DATA_DIR || "data");
 const dbPath = join(dataDir, "habit-coach-db.json");
 
