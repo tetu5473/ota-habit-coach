@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>講師レビュー - 太田の習慣コーチ</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell coach-review-shell">
+      <header class="topbar coach-review-topbar">
+        <div>
+          <p class="eyebrow">Coach review</p>
+          <h1>講師レビュー</h1>
+          <p class="coach-review-lead">太田さんの習慣記録を確認するための閲覧専用画面です。</p>
+        </div>
+        <a class="ghost-button coach-review-home" href="./index.html">記録画面へ</a>
+      </header>
+
+      <main class="coach-review-main">
+        <section class="panel coach-review-summary">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Summary</p>
+              <h2>全体サマリー</h2>
+            </div>
+            <button class="ghost-button compact-button" id="refreshCoachReviewButton" type="button">更新</button>
+          </div>
+          <div class="stats-grid coach-review-stats">
+            <button class="coach-stat-button" type="button" data-summary-action="all">
+              <strong id="coachTotalRecords">0</strong>
+              <span>記録数</span>
+            </button>
+            <button class="coach-stat-button" type="button" data-summary-action="success">
+              <strong id="coachSuccessRate">0%</strong>
+              <span>達成率</span>
+            </button>
+            <button class="coach-stat-button" type="button" data-summary-action="learning">
+              <strong id="coachLearningTime">0分</strong>
+              <span>学習時間</span>
+            </button>
+          </div>
+          <details class="compact-details coach-date-details">
+            <summary>
+              <span>
+                <span class="eyebrow">Dates</span>
+                <strong>日別クイック確認</strong>
+              </span>
+              <span class="summary-hint">開く</span>
+            </summary>
+            <div class="compact-details-body">
+              <div class="coach-date-overview" id="coachDateOverview" aria-label="日別クイック確認"></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel coach-review-today">
+          <details class="compact-details">
+            <summary>
+              <span>
+                <span class="eyebrow">Today</span>
+                <strong id="coachTodayTitle">今日の記録</strong>
+              </span>
+              <span class="summary-hint">開く</span>
+            </summary>
+            <div class="compact-details-body">
+              <div class="coach-record-grid" id="coachTodayRecords"></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel coach-review-history">
+          <details class="compact-details" open>
+            <summary>
+              <span>
+                <span class="eyebrow">History</span>
+                <strong>過去の記録</strong>
+              </span>
+              <span class="summary-hint">開く</span>
+            </summary>
+            <div class="compact-details-body">
+              <div class="coach-quick-filters" aria-label="クイック絞り込み">
+                <button class="ghost-button compact-button is-active" type="button" data-period-filter="all">すべて</button>
+                <button class="ghost-button compact-button" type="button" data-period-filter="week">今週</button>
+                <button class="ghost-button compact-button" type="button" data-period-filter="last7">直近7日</button>
+                <button class="ghost-button compact-button" type="button" data-period-filter="missed">未達だけ</button>
+              </div>
+              <div class="coach-filter-row">
+                <label>
+                  表示カテゴリ
+                  <select id="coachHabitFilter">
+                    <option value="all">すべて</option>
+                    <option value="strength">筋トレ</option>
+                    <option value="learning">学習</option>
+                    <option value="sleep">睡眠</option>
+                  </select>
+                </label>
+                <button class="ghost-button compact-button" id="clearCoachDateFilterButton" type="button" hidden>日付絞り込みを解除</button>
+              </div>
+              <p class="coach-selected-date" id="coachSelectedDateLabel">すべての日付を表示中</p>
+              <div class="coach-record-list" id="coachHistoryRecords"></div>
+            </div>
+          </details>
+        </section>
+
+        <p class="voice-status" id="coachReviewStatus" role="status">記録を読み込み中です。</p>
+      </main>
+    </div>
+
+    <script src="./coach.js"></script>
+  </body>
+</html>

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>太田の習慣コーチ</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <!-- Reusable microphone icon for every voice input button. -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6"></path>
+      </symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6"></path>
+      </symbol>
+      <symbol id="icon-chevron-up" viewBox="0 0 24 24">
+        <path d="m18 15-6-6-6 6"></path>
+      </symbol>
+      <symbol id="icon-mic" viewBox="0 0 24 24">
+        <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+        <path d="M19 10v1a7 7 0 0 1-14 0v-1"></path>
+        <path d="M12 18v4"></path>
+        <path d="M8 22h8"></path>
+      </symbol>
+    </svg>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Small promise habit coach</p>
+          <h1>太田の習慣コーチ</h1>
+        </div>
+        <button class="ghost-button" id="resetDataButton" type="button">初期化</button>
+      </header>
+      <nav class="page-tabs" aria-label="画面内の移動">
+        <button type="button" data-scroll-target="#dailyRecordSection">今日の記録</button>
+        <button type="button" data-scroll-target="#lineSection">LINE送信</button>
+        <button type="button" data-scroll-target="#weeklySection">週間</button>
+        <button type="button" data-scroll-target="#historySection">履歴</button>
+        <button type="button" data-scroll-target="#testSection">テスト</button>
+      </nav>
+
+      <main>
+        <section class="workflow-grid" id="dailyRecordSection">
+          <article class="panel daily-record-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Daily check-in</p>
+                <h2 id="dailyFormTitle">今日の記録</h2>
+                <p class="record-date-label" id="recordDateLabel">記録日: 今日</p>
+              </div>
+              <div class="date-action-row">
+                <button class="date-pill" id="todayLabel" type="button" aria-expanded="false" aria-controls="calendarPanel"></button>
+                <button class="ghost-button compact-button" id="resetRecordDateButton" type="button">今日に戻す</button>
+              </div>
+            </div>
+            <div class="calendar-panel compact-calendar" id="calendarPanel" hidden>
+              <div class="calendar-header">
+                <h3>記録カレンダー</h3>
+                <div class="calendar-controls">
+                  <button class="icon-button" id="previousMonthButton" type="button" aria-label="前の月">
+                    <svg aria-hidden="true"><use href="#icon-chevron-left"></use></svg>
+                  </button>
+                  <strong id="calendarMonthLabel"></strong>
+                  <button class="icon-button" id="nextMonthButton" type="button" aria-label="次の月">
+                    <svg aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span>月</span>
+                <span>火</span>
+                <span>水</span>
+                <span>木</span>
+                <span>金</span>
+                <span>土</span>
+                <span>日</span>
+              </div>
+              <div class="calendar-grid" id="calendarGrid"></div>
+              <div class="calendar-detail" id="calendarDetail"></div>
+            </div>
+            <form id="dailyForm" class="form-stack">
+              <div class="multi-habit-records" id="multiHabitRecords"></div>
+              <div class="voice-field">
+                <label for="habitSelect">習慣</label>
+                <div class="input-with-action">
+                  <select id="habitSelect"></select>
+                  <button class="voice-button" type="button" data-voice-target="habit" aria-label="習慣を音声入力" title="習慣を音声入力">
+                    <svg aria-hidden="true"><use href="#icon-mic"></use></svg>
+                    <span class="sr-only">習慣を音声入力</span>
+                  </button>
+                </div>
+              </div>
+              <p class="today-focus" id="minimumSuggestion">今日の目安を読み込み中です。</p>
+              <details class="record-check-details compact-details">
+                <summary>
+                  <span>
+                    <span class="eyebrow">Check</span>
+                    <strong>結果</strong>
+                  </span>
+                  <span class="summary-hint">開く</span>
+                </summary>
+                <div class="compact-details-body">
+                  <div class="compact-check-row">
+                    <fieldset>
+                      <div class="compact-field-heading">
+                        <legend>結果</legend>
+                        <button class="voice-button compact-voice-button" type="button" data-voice-target="status" aria-label="今日の結果を音声入力" title="今日の結果を音声入力">
+                          <svg aria-hidden="true"><use href="#icon-mic"></use></svg>
+                          <span class="sr-only">今日の結果を音声入力</span>
+                        </button>
+                      </div>
+                      <div class="segmented-control compact-segmented-control">
+                        <label><input type="radio" name="status" value="done" checked>できた</label>
+                        <label><input type="radio" name="status" value="partial">少し</label>
+                        <label><input type="radio" name="status" value="missed">未達</label>
+                      </div>
+                    </fieldset>
+                    <div class="compact-mood-field" hidden>
+                      <label for="mood">気分</label>
+                      <div class="input-with-action">
+                        <select id="mood">
+                          <option value="great">かなり良い</option>
+                          <option value="good" selected>良い</option>
+                          <option value="flat">普通</option>
+                          <option value="tired">疲れた</option>
+                          <option value="hard">しんどい</option>
+                        </select>
+                        <button class="voice-button compact-voice-button" type="button" data-voice-target="mood" aria-label="気分を音声入力" title="気分を音声入力">
+                          <svg aria-hidden="true"><use href="#icon-mic"></use></svg>
+                          <span class="sr-only">気分を音声入力</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+              <div class="voice-field learning-time-field" id="learningTimeField" hidden>
+                <label>学習時間</label>
+                <div class="calculated-time">
+                  <span id="learningDurationDisplay">時間帯を入力すると自動計算されます</span>
+                  <input id="learningMinutes" type="hidden" value="">
+                </div>
+              </div>
+              <div class="voice-field learning-session-field" id="learningSessionField" hidden>
+                <label>学習時間帯</label>
+                <div class="learning-session-stack">
+                  <div class="learning-session-list" id="learningSessionList"></div>
+                  <button class="ghost-button compact-button" id="addLearningSessionButton" type="button">時間帯を追加</button>
+                </div>
+              </div>
+              <details class="focus-timer" id="focusTimer" hidden>
+                <summary>
+                  <span class="timer-label">集中タイマー</span>
+                  <strong id="timerDisplay">25:00</strong>
+                  <span class="timer-hint">開く</span>
+                </summary>
+                <div class="timer-actions">
+                  <button class="ghost-button compact-button" type="button" data-timer-minutes="25">25分</button>
+                  <button class="ghost-button compact-button" type="button" data-timer-minutes="50">50分</button>
+                  <button class="primary-button compact-button" id="timerToggleButton" type="button">開始</button>
+                  <button class="ghost-button compact-button" id="timerResetButton" type="button">リセット</button>
+                </div>
+              </details>
+              <div class="voice-field">
+                <label for="note">ひとことメモ</label>
+                <div class="input-with-action">
+                  <textarea id="note" rows="4" maxlength="2000" placeholder="今日の自分に残したいこと。長めの振り返りも入力できます"></textarea>
+                  <button class="voice-button" type="button" data-voice-target="note" aria-label="ひとことメモを音声入力" title="ひとことメモを音声入力">
+                    <svg aria-hidden="true"><use href="#icon-mic"></use></svg>
+                    <span class="sr-only">ひとことメモを音声入力</span>
+                  </button>
+                </div>
+              </div>
+              <p class="voice-status" id="voiceStatus" role="status">音声入力は対応ブラウザで使えます。</p>
+              <div class="record-actions">
+                <button class="ghost-button compact-button" id="dailyPreviewReportButton" type="button">送信前に確認</button>
+                <button class="primary-button" type="submit">保存してLINE送信</button>
+              </div>
+              <p class="record-send-note">保存すると、入力内容を記録し、LINE連携済みの場合は講師と自分へ報告を送信します。</p>
+              <p class="report-readiness-status" id="reportReadinessStatus" role="status">報告できる状態を確認しています。</p>
+              <p class="record-save-status" id="recordSaveStatus" role="status">記録すると、保存状態とLINE送信状態がここに表示されます。</p>
+              <section class="coach-panel compact-coach-panel" aria-live="polite">
+                <div class="coach-avatar">Coach</div>
+                <div>
+                  <p class="coach-type" id="coachType">記録後のひとこと</p>
+                  <h2 id="coachTitle">おかえりなさい</h2>
+                  <p id="coachBody">今日の記録を一緒に残しましょう。</p>
+                </div>
+              </section>
+              <div class="line-report-preview daily-line-report-preview" id="dailyLineReportPreview" hidden></div>
+            </form>
+          </article>
+        </section>
+
+        <section class="panel line-panel" id="lineSection">
+          <details class="line-details">
+            <summary>
+              <span>
+                <span class="eyebrow">LINE link</span>
+                <strong>LINE連携</strong>
+              </span>
+              <span class="summary-hint">必要な時だけ開く</span>
+            </summary>
+            <div class="line-panel-body">
+              <div class="section-heading">
+                <p class="helper-text">連携コードやWebhook URLを確認できます。</p>
+                <button class="ghost-button compact-button" id="refreshLineStatusButton" type="button">更新</button>
+              </div>
+              <div class="line-link-grid">
+                <article class="line-link-card">
+                  <h3>本人コード</h3>
+                  <strong id="studentLinkCode">読み込み中</strong>
+                  <p id="studentLinkStatus">LINE公式アカウントに「連携 CODE」と送ります。</p>
+                </article>
+                <article class="line-link-card">
+                  <h3>講師コード</h3>
+                  <strong id="coachLinkCode">読み込み中</strong>
+                  <p id="coachLinkStatus">講師は「講師連携 CODE」と送ります。</p>
+                </article>
+              </div>
+              <p class="helper-text" id="lineReportStatus">記録保存時のLINEレポート状態を表示します。</p>
+              <div class="button-row">
+                <button class="ghost-button compact-button" id="previewDailyReportButton" type="button">送信予定文面を確認</button>
+                <button class="ghost-button compact-button" id="sendDailyReportButton" type="button">この日のレポートを再送</button>
+              </div>
+              <div class="line-report-preview" id="lineReportPreview" hidden></div>
+              <p class="helper-text" id="lineWebhookStatus">Webhook URLを確認中です。</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel test-check-panel" id="testSection">
+          <details class="compact-details">
+            <summary>
+              <span>
+                <span class="eyebrow">Test checklist</span>
+                <strong>テスト確認</strong>
+              </span>
+              <span class="summary-hint">開く</span>
+            </summary>
+            <div class="compact-details-body">
+              <p class="helper-text">講師課題用に、アプリ内でも確認状況をチェックできます。</p>
+              <div class="test-summary-row">
+                <p class="test-progress-status" id="testProgressStatus">確認状況を読み込み中です。</p>
+                <button class="ghost-button compact-button" id="resetTestChecklistButton" type="button">チェックをリセット</button>
+              </div>
+              <div class="test-check-list" id="testCheckList"></div>
+              <h3 class="subsection-title">UI/UX改善点と修正内容</h3>
+              <div class="uiux-improvement-list" id="uiuxImprovementList"></div>
+            </div>
+          </details>
+        </section>
+
+        <div class="report-preview-modal" id="reportPreviewModal" hidden>
+          <div class="report-preview-backdrop" data-report-preview-close></div>
+          <section class="report-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="reportPreviewTitle">
+            <div class="report-preview-header">
+              <div>
+                <p class="eyebrow">LINE preview</p>
+                <h2 id="reportPreviewTitle">送信予定文面</h2>
+              </div>
+              <button class="ghost-button compact-button" type="button" id="closeReportPreviewButton">閉じる</button>
+            </div>
+            <div class="line-report-preview report-preview-modal-body" id="modalLineReportPreview"></div>
+          </section>
+        </div>
+
+        <div class="report-preview-modal record-edit-modal" id="recordEditModal" hidden>
+          <div class="report-preview-backdrop" data-record-edit-close></div>
+          <section class="report-preview-dialog record-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="recordEditTitle">
+            <div class="report-preview-header">
+              <div>
+                <p class="eyebrow">Record edit</p>
+                <h2 id="recordEditTitle">保存済み報告を編集</h2>
+              </div>
+              <button class="ghost-button compact-button" type="button" id="closeRecordEditButton">閉じる</button>
+            </div>
+            <form class="record-edit-form" id="recordEditForm">
+              <div class="record-edit-date-row">
+                <label for="recordEditDate">報告日</label>
+                <input id="recordEditDate" type="date" required>
+                <p id="recordEditSummary"></p>
+              </div>
+              <div class="record-edit-list" id="recordEditList"></div>
+              <p class="record-edit-send-note">変更の保存ではLINEを送信しません。必要な場合は保存後にレポートを再送できます。</p>
+              <p class="record-edit-status" id="recordEditStatus" role="status"></p>
+              <div class="record-edit-actions">
+                <button class="ghost-button" type="button" id="cancelRecordEditButton">キャンセル</button>
+                <button class="primary-button" type="submit">変更を保存</button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <section class="panel weekly-panel" id="weeklySection">
+          <details class="compact-details">
+            <summary>
+              <span>
+                <span class="eyebrow">Weekly review</span>
+                <strong>週間レビュー</strong>
+              </span>
+              <span class="summary-hint">開く</span>
+            </summary>
+            <div class="compact-details-body">
+              <div class="review-grid" id="weeklyReview"></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel history-panel" id="historySection">
+          <details class="compact-details">
+            <summary>
+              <span>
+                <span class="eyebrow">History</span>
+                <strong>履歴</strong>
+              </span>
+              <span class="summary-hint">開く</span>
+            </summary>
+            <div class="compact-details-body">
+              <div class="history-filter-bar">
+                <label>
+                  月
+                  <select id="historyMonthFilter">
+                    <option value="">すべて</option>
+                  </select>
+                </label>
+                <label>
+                  習慣
+                  <select id="historyHabitFilter">
+                    <option value="">すべて</option>
+                  </select>
+                </label>
+                <label>
+                  結果
+                  <select id="historyStatusFilter">
+                    <option value="">すべて</option>
+                    <option value="done">できた</option>
+                    <option value="partial">少しだけ</option>
+                    <option value="missed">未達</option>
+                  </select>
+                </label>
+                <label>
+                  検索
+                  <input id="historySearchInput" type="search" placeholder="メモを検索">
+                </label>
+              </div>
+              <div class="history-list" id="historyList"></div>
+            </div>
+          </details>
+        </section>
+      </main>
+    </div>
+
+    <button class="scroll-top-button" id="scrollTopButton" type="button" aria-label="上に戻る" title="上に戻る" hidden>
+      <svg aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+    </button>
+
+    <template id="promiseTemplate">
+      <article class="habit-card">
+        <div class="habit-summary">
+          <div>
+            <p class="category"></p>
+            <h3></h3>
+            <p class="minimum"></p>
+          </div>
+          <button class="ghost-button habit-edit-button" type="button">編集</button>
+        </div>
+        <form class="habit-edit-form" hidden>
+          <label>
+            習慣名
+            <span class="input-with-action">
+              <input class="habit-title-input" type="text" maxlength="32" required>
+              <button class="voice-button compact-voice-button habit-title-voice-button" type="button" aria-label="習慣名を音声入力" title="習慣名を音声入力">
+                <svg aria-hidden="true"><use href="#icon-mic"></use></svg>
+                <span class="sr-only">習慣名を音声入力</span>
+              </button>
+            </span>
+          </label>
+          <label>
+            標準の最低ライン
+            <span class="input-with-action">
+              <input class="habit-minimum-input" type="text" maxlength="120" required>
+              <button class="voice-button compact-voice-button habit-minimum-voice-button" type="button" aria-label="標準の最低ラインを音声入力" title="標準の最低ラインを音声入力">
+                <svg aria-hidden="true"><use href="#icon-mic"></use></svg>
+                <span class="sr-only">標準の最低ラインを音声入力</span>
+              </button>
+            </span>
+          </label>
+          <div class="button-row">
+            <button class="primary-button" type="submit">保存</button>
+            <button class="ghost-button habit-cancel-button" type="button">キャンセル</button>
+          </div>
+          <p class="habit-save-note" aria-live="polite"></p>
+        </form>
+        <div class="habit-card-footer">
+          <span class="status-badge"></span>
+          <button class="primary-button compact-button habit-record-button" type="button">記録する</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

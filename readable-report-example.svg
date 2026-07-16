@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1180" viewBox="0 0 900 1180">
+  <rect width="100%" height="100%" fill="#edf7f0"/>
+  <circle cx="48" cy="62" r="25" fill="#d9eee2"/>
+  <text x="48" y="72" text-anchor="middle" font-size="20" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Arial Unicode MS', sans-serif" fill="#24734d">太</text>
+  <rect x="76" y="58" width="748" height="1070" rx="22" fill="#fffef9" stroke="#cfe8d8"/>
+  <path d="M 76 80 Q 76 58 98 58 H 802 Q 824 58 824 80 V 196 H 76 Z" fill="#e8f8e7"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Arial Unicode MS', sans-serif">
+    <text x="138" y="118" font-size="20" font-weight="700" fill="#24734d">太田習慣コーチからの送信イメージ</text>
+    <text x="138" y="166" font-size="36" font-weight="700" fill="#1f3327">太田の習慣レポート</text>
+    <text x="138" y="260" font-size="24" fill="#46564d">記録日: 2026/6/28(日)</text>
+<text x="138" y="318" font-size="30" font-weight="700" fill="#1f3327">今日のまとめ</text>
+<text x="138" y="376" font-size="23" font-weight="700" fill="#26372d">今日は3項目すべて達成。学習は4時間20分行った。</text>
+<text x="158" y="424" font-size="22" fill="#2e4035">要フォロー: なし</text>
+<text x="138" y="464" font-size="30" font-weight="700" fill="#1f3327">習慣別の記録</text>
+<text x="138" y="522" font-size="27" font-weight="700" fill="#1f3327">1. 筋トレ</text>
+<text x="158" y="570" font-size="22" fill="#2e4035">結果: できた / 最低ライン: スクワット10回</text>
+<text x="138" y="610" font-size="27" font-weight="700" fill="#1f3327">2. 学習</text>
+<text x="158" y="658" font-size="22" fill="#2e4035">結果: できた / 学習時間: 4時間20分</text>
+<text x="158" y="698" font-size="22" fill="#2e4035">時間帯: 18:30〜22:50</text>
+<text x="158" y="738" font-size="24" font-weight="700" fill="#24734d">今日のPDCA</text>
+<text x="158" y="782" font-size="22" fill="#2f4a3a">P：計画　LINE報告を講師へ送れる状態にする</text>
+<text x="158" y="822" font-size="22" fill="#2f4a3a">D：実行　Webhook設定と講師連携を確認</text>
+<text x="158" y="862" font-size="22" fill="#2f4a3a">C：確認　講師側・自分側のLINE受信を確認</text>
+<text x="158" y="902" font-size="22" fill="#2f4a3a">A：改善　次回は送信内容の見やすさを調整</text>
+<text x="138" y="942" font-size="27" font-weight="700" fill="#1f3327">3. 睡眠</text>
+<text x="158" y="990" font-size="22" fill="#2e4035">結果: できた / 最低ライン: 6時間睡眠</text>
+<text x="158" y="1030" font-size="22" fill="#2e4035">気分: 疲れた</text>
+  </g>
+</svg>
