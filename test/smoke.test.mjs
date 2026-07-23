@@ -166,6 +166,33 @@ test("保存済み報告の内容と日付をまとめて更新できる", async
   assert.equal(records.find((record) => record.habitId === "learning")?.learningMinutes, "60");
 });
 
+test("自分だけのLINEテスト送信として保存できる", async () => {
+  const testDate = "2026-07-11";
+  const response = await fetch(`${baseUrl}/api/records/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      reportTarget: "student",
+      records: [
+        {
+          date: testDate,
+          habitId: "sleep",
+          habitTitle: "睡眠",
+          plannedMinimumAction: "6時間は寝る",
+          status: "done",
+          note: "自分だけに確認する",
+        },
+      ],
+    }),
+  });
+  const result = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(result.records.length, 1);
+  assert.equal(result.report.target, "student");
+  assert.equal(result.report.sent, false);
+  assert.equal(result.report.reason, "missing_channel_access_token");
+});
+
 test("存在しないページは404になる", async () => {
   const response = await fetch(`${baseUrl}/not-found-for-test`);
   assert.equal(response.status, 404);

@@ -110,7 +110,7 @@ async function handleApi(request, response, url) {
   if (request.method === "POST" && url.pathname === "/api/records") {
     const body = await readJsonBody(request);
     const savedRecord = await saveDailyRecord(body);
-    const reportResult = await sendDailyReport(savedRecord);
+    const reportResult = await sendDailyReport(savedRecord, { target: body.reportTarget });
     sendJson(response, 200, {
       ok: true,
       record: savedRecord,
@@ -123,7 +123,7 @@ async function handleApi(request, response, url) {
     const body = await readJsonBody(request);
     const savedRecords = await saveDailyRecords(Array.isArray(body.records) ? body.records : []);
     const reportResult = savedRecords.length
-      ? await sendDailyReportForDate(savedRecords[0].date)
+      ? await sendDailyReportForDate(savedRecords[0].date, { target: body.reportTarget })
       : { sent: false, reason: "no_records_for_date" };
     sendJson(response, 200, {
       ok: true,
@@ -135,7 +135,9 @@ async function handleApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/reports/daily") {
     const body = await readJsonBody(request);
-    const reportResult = await sendDailyReportForDate(body.date || formatDateKey(new Date()));
+    const reportResult = await sendDailyReportForDate(body.date || formatDateKey(new Date()), {
+      target: body.reportTarget,
+    });
     sendJson(response, 200, {
       ok: true,
       report: reportResult,
@@ -374,11 +376,11 @@ async function updateDailyRecords(fromDate, records) {
   return updatedRecords;
 }
 
-async function sendDailyReport(record) {
-  return sendDailyReportForDate(record.date);
+async function sendDailyReport(record, options = {}) {
+  return sendDailyReportForDate(record.date, options);
 }
 
-async function sendDailyReportForDate(date) {
+async function sendDailyReportForDate(date, options = {}) {
   const db = await readDb();
   const records = db.dailyRecords.filter((record) => record.date === date);
   if (!records.length) {
@@ -386,6 +388,17 @@ async function sendDailyReportForDate(date) {
   }
 
   const text = buildDailyReportMessage(db, date);
+  if (options.target === "student") {
+    const line = await sendLineDailyReportToStudent(db.users.student, text);
+    return {
+      sent: line.sent,
+      reason: line.reason,
+      target: "student",
+      line,
+      email: { sent: false, reason: "test_mode" },
+    };
+  }
+
   // Send the same daily report to the coach and to the student for confirmation.
   const line = await sendLineDailyReport(db.users.coach, db.users.student, text);
   const email = await sendEmailDailyReport(text, date);
@@ -395,6 +408,23 @@ async function sendDailyReportForDate(date) {
     line,
     email,
   };
+}
+
+async function sendLineDailyReportToStudent(student, text) {
+  if (!env.LINE_CHANNEL_ACCESS_TOKEN) {
+    return { sent: false, reason: "missing_channel_access_token" };
+  }
+  if (!student?.lineUserId) {
+    return { sent: false, reason: "student_not_linked" };
+  }
+
+  try {
+    await pushLineMessage(student.lineUserId, text);
+    return { sent: true, recipients: { student: { sent: true } } };
+  } catch (error) {
+    console.error("LINE self-test send failed:", error);
+    return { sent: false, reason: "line_send_failed", recipients: { student: { sent: false } } };
+  }
 }
 
 async function sendLineDailyReport(coach, student, text) {

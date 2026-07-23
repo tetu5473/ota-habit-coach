@@ -824,6 +824,18 @@ button.date-pill.is-active {
   min-width: min(220px, 100%);
 }
 
+.self-test-button {
+  border-color: rgba(58, 127, 192, 0.28);
+  background: #f7fbff;
+  color: #245f91;
+  font-weight: 800;
+}
+
+.self-test-button:hover {
+  border-color: rgba(58, 127, 192, 0.42);
+  background: #eef6ff;
+}
+
 .record-send-note {
   margin-top: -4px;
   color: var(--muted);

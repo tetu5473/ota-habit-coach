@@ -176,9 +176,10 @@
               <p class="voice-status" id="voiceStatus" role="status">音声入力は対応ブラウザで使えます。</p>
               <div class="record-actions">
                 <button class="ghost-button compact-button" id="dailyPreviewReportButton" type="button">送信前に確認</button>
+                <button class="ghost-button compact-button self-test-button" id="selfTestReportButton" type="button">自分だけにテスト送信</button>
                 <button class="primary-button" type="submit">保存してLINE送信</button>
               </div>
-              <p class="record-send-note">保存すると、入力内容を記録し、LINE連携済みの場合は講師と自分へ報告を送信します。</p>
+              <p class="record-send-note">通常保存は講師と自分へ送信します。テスト送信は講師に送らず、自分のLINEだけで確認できます。</p>
               <p class="report-readiness-status" id="reportReadinessStatus" role="status">報告できる状態を確認しています。</p>
               <p class="record-save-status" id="recordSaveStatus" role="status">記録すると、保存状態とLINE送信状態がここに表示されます。</p>
               <section class="coach-panel compact-coach-panel" aria-live="polite">
@@ -223,6 +224,7 @@
               <p class="helper-text" id="lineReportStatus">記録保存時のLINEレポート状態を表示します。</p>
               <div class="button-row">
                 <button class="ghost-button compact-button" id="previewDailyReportButton" type="button">送信予定文面を確認</button>
+                <button class="ghost-button compact-button self-test-button" id="sendSelfTestReportButton" type="button">自分だけに再送</button>
                 <button class="ghost-button compact-button" id="sendDailyReportButton" type="button">この日のレポートを再送</button>
               </div>
               <div class="line-report-preview" id="lineReportPreview" hidden></div>

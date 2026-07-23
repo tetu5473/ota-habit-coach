@@ -234,6 +234,8 @@ const elements = {
   lineReportStatus: document.querySelector("#lineReportStatus"),
   previewDailyReportButton: document.querySelector("#previewDailyReportButton"),
   dailyPreviewReportButton: document.querySelector("#dailyPreviewReportButton"),
+  selfTestReportButton: document.querySelector("#selfTestReportButton"),
+  sendSelfTestReportButton: document.querySelector("#sendSelfTestReportButton"),
   sendDailyReportButton: document.querySelector("#sendDailyReportButton"),
   lineReportPreview: document.querySelector("#lineReportPreview"),
   dailyLineReportPreview: document.querySelector("#dailyLineReportPreview"),
@@ -290,6 +292,8 @@ function init() {
   elements.refreshLineStatusButton.addEventListener("click", loadLineLinkStatus);
   elements.previewDailyReportButton.addEventListener("click", previewDailyReport);
   elements.dailyPreviewReportButton.addEventListener("click", previewDailyReport);
+  elements.selfTestReportButton?.addEventListener("click", handleSelfTestReport);
+  elements.sendSelfTestReportButton?.addEventListener("click", sendSelfTestReportAgain);
   elements.closeReportPreviewButton?.addEventListener("click", closeReportPreviewModal);
   elements.reportPreviewModal?.addEventListener("click", (event) => {
     if (event.target.matches("[data-report-preview-close]")) closeReportPreviewModal();
@@ -1514,6 +1518,16 @@ function handleDailyRecord(event) {
   });
 }
 
+function handleSelfTestReport() {
+  const recordDateKey = getRecordDateKey();
+  const records = collectMultiHabitRecords(recordDateKey);
+  saveHabitRecords(records, {
+    reportTarget: "student",
+    latestEventType: "checked-in",
+    statusMessage: `${formatShortDate(recordDateKey)}の記録を保存し、自分だけにテスト送信しています。`,
+  });
+}
+
 function saveHabitRecords(records, options = {}) {
   const recordDateKey = records[0]?.checkIn.date || getRecordDateKey();
   records.forEach(({ habit, plannedMinimumAction, checkIn }) => {
@@ -1532,7 +1546,9 @@ function saveHabitRecords(records, options = {}) {
     ...checkIn,
     habitTitle: habit.title,
     plannedMinimumAction,
-  })));
+  })), {
+    reportTarget: options.reportTarget,
+  });
   render({
     type: options.latestEventType || "checked-in",
     habitId: records[0]?.habit.id,
@@ -1686,14 +1702,17 @@ async function syncRecordToServer(record) {
   }
 }
 
-async function syncRecordsToServer(records) {
+async function syncRecordsToServer(records, options = {}) {
   try {
     const response = await fetch(`${API_BASE}/api/records/bulk`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ records }),
+      body: JSON.stringify({
+        records,
+        reportTarget: options.reportTarget,
+      }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
@@ -1738,6 +1757,16 @@ async function deleteCheckIn(date, habitId) {
 function buildLineReportStatus(report) {
   const lineSent = Boolean(report?.line?.sent || report?.sent);
   const emailSent = Boolean(report?.email?.sent);
+  if (report?.target === "student") {
+    if (lineSent) return "自分だけにLINEテスト送信しました。講師には送っていません。";
+    const selfTestReasons = {
+      missing_channel_access_token: "LINEトークン未設定のため、自分だけのテスト送信は保留中です。",
+      student_not_linked: "本人のLINE連携が未完了のため、自分だけのテスト送信は保留中です。",
+      line_send_failed: "自分だけのLINEテスト送信に失敗しました。設定を確認してください。",
+      no_records_for_date: `${formatShortDate(getRecordDateKey())}の記録がまだないため、テスト送信していません。`,
+    };
+    return selfTestReasons[report?.reason || report?.line?.reason] || "自分だけのLINEテスト送信は保留中です。";
+  }
   // Show whether the LINE report reached only the coach or both the coach and student.
   const selfLineSent = Boolean(report?.line?.recipients?.student?.sent);
   const lineTargetText = selfLineSent ? "講師と自分へLINE" : "講師へLINE";
@@ -1766,7 +1795,11 @@ function buildLineReportStatus(report) {
 
 function getRecordSaveStatusType(report) {
   if (report?.sent || report?.line?.sent || report?.email?.sent) return "success";
-  if (report?.reason === "missing_channel_access_token" || report?.reason === "coach_not_linked") return "pending";
+  if (
+    report?.reason === "missing_channel_access_token"
+    || report?.reason === "coach_not_linked"
+    || report?.reason === "student_not_linked"
+  ) return "pending";
   if (report?.reason === "line_send_failed") return "error";
   if (report?.reason === "no_records_for_date") return "pending";
   return "pending";
@@ -1802,6 +1835,40 @@ async function sendDailyReportAgain() {
     elements.lineReportStatus.textContent = buildLineReportStatus(result.report);
   } catch {
     elements.lineReportStatus.textContent = "日次レポート再送APIに接続できませんでした。";
+  }
+}
+
+async function sendSelfTestReportAgain() {
+  const recordDateKey = getRecordDateKey();
+  const savedRecords = state.checkIns.filter((checkIn) => checkIn.date === recordDateKey);
+  if (!savedRecords.length) {
+    const message = `${formatShortDate(recordDateKey)}の保存済み記録がまだありません。先に入力して「自分だけにテスト送信」を押してください。`;
+    elements.lineReportStatus.textContent = message;
+    setRecordSaveStatus(message, "pending");
+    renderReportReadiness();
+    return;
+  }
+  elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}のレポートを自分だけにテスト送信しています。`;
+  try {
+    const response = await fetch(`${API_BASE}/api/reports/daily`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        date: recordDateKey,
+        reportTarget: "student",
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const statusText = buildLineReportStatus(result.report);
+    elements.lineReportStatus.textContent = statusText;
+    setRecordSaveStatus(statusText, getRecordSaveStatusType(result.report));
+  } catch {
+    const message = "自分だけのLINEテスト送信APIに接続できませんでした。";
+    elements.lineReportStatus.textContent = message;
+    setRecordSaveStatus(message, "error");
   }
 }
 
