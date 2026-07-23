@@ -166,6 +166,7 @@ async function handleApi(request, response, url) {
 async function handleLineWebhook(request, response) {
   const rawBody = await readRawBody(request);
   if (!verifyLineSignature(rawBody, request.headers["x-line-signature"])) {
+    console.warn("LINE webhook rejected: invalid signature");
     sendJson(response, 401, { error: "invalid_signature" });
     return;
   }
@@ -174,19 +175,69 @@ async function handleLineWebhook(request, response) {
   const db = await readDb();
 
   for (const event of payload.events || []) {
-    if (event.type !== "message" || event.message?.type !== "text") continue;
+    if (event.type !== "message" || event.message?.type !== "text") {
+      console.info("LINE webhook ignored:", {
+        eventType: event.type,
+        messageType: event.message?.type || null,
+        sourceType: event.source?.type || null,
+      });
+      continue;
+    }
     const text = event.message.text.trim();
     const lineUserId = event.source?.userId;
-    if (!lineUserId) continue;
+    const textInfo = describeLineLinkText(text, db);
+    console.info("LINE webhook text received:", {
+      sourceType: event.source?.type || null,
+      hasUserId: Boolean(lineUserId),
+      command: textInfo.command,
+      codePrefix: textInfo.codePrefix,
+      match: textInfo.match,
+    });
+
+    if (!lineUserId) {
+      console.warn("LINE webhook skipped: missing source userId");
+      continue;
+    }
 
     const linked = linkUserByMessage(db, lineUserId, text);
     if (linked && event.replyToken) {
+      console.info("LINE link success:", { role: linked.role, name: linked.name });
       await replyLineMessage(event.replyToken, `${linked.name}として連携しました。`);
+    } else if (textInfo.command && event.replyToken) {
+      console.warn("LINE link failed:", { reason: textInfo.reason, codePrefix: textInfo.codePrefix });
+      await replyLineMessage(event.replyToken, getLineLinkHelpMessage(textInfo.reason));
     }
   }
 
   await writeDb(db);
   sendJson(response, 200, { ok: true });
+}
+
+function describeLineLinkText(text, db) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const command = normalized.startsWith("講師連携")
+    ? "coach"
+    : normalized.startsWith("連携")
+      ? "student"
+      : null;
+  const [, code] = normalized.match(/^(?:連携|講師連携)\s+([A-Z0-9-]+)$/i) || [];
+  const matchedUser = code
+    ? Object.values(db.users).find((user) => user.linkCode.toUpperCase() === code.toUpperCase())
+    : null;
+
+  return {
+    command,
+    codePrefix: code ? `${code.slice(0, 5)}...` : null,
+    match: Boolean(matchedUser),
+    reason: code ? "unknown_code" : command ? "invalid_format" : "not_link_command",
+  };
+}
+
+function getLineLinkHelpMessage(reason) {
+  if (reason === "unknown_code") {
+    return "連携コードが一致しませんでした。講師連携 COACH-1234 の形で、余分な文字を入れずに送ってください。";
+  }
+  return "連携メッセージの形式が違う可能性があります。講師連携 COACH-1234 の1行だけを送ってください。";
 }
 
 function linkUserByMessage(db, lineUserId, text) {
