@@ -109,7 +109,8 @@ Resendを使う場合は、以下も設定します。
    - `APP_BASE_URL`
    - `STUDENT_LINK_CODE`
    - `COACH_LINK_CODE`
-   - `COACH_LINE_USER_ID`（分かる場合）
+   - `STUDENT_LINE_USER_ID`（分かる場合。Render再起動後も本人連携を復元するため）
+   - `COACH_LINE_USER_ID`（分かる場合。Render再起動後も講師連携を復元するため）
    - `REPORT_EMAIL_TO`（メール送信も使う場合）
    - `GOOGLE_SCRIPT_EMAIL_WEBHOOK_URL`（Gmailからメール送信する場合）
    - `RESEND_API_KEY`（Resendでメール送信する場合）
@@ -120,4 +121,4 @@ Resendを使う場合は、以下も設定します。
    - `https://あなたのRender URL/api/line/webhook`
 7. スマホでRenderのURLを開き、記録送信とLINE報告を確認します。
 
-Render Freeは15分ほどアクセスがないと休止し、次に開く時に起動まで少し待つことがあります。自分と講師で報告を確認する用途なら無料枠から始められますが、長期の記録保存を安定させる場合は、あとで有料の保存先や外部データベースを検討します。
+Render Freeは15分ほどアクセスがないと休止し、次に開く時に起動まで少し待つことがあります。再デプロイや再起動でRender上の保存ファイルが初期化されることがあるため、LINE連携を安定させる場合は `STUDENT_LINE_USER_ID` と `COACH_LINE_USER_ID` をEnvironment Variablesに固定します。自分と講師で報告を確認する用途なら無料枠から始められますが、長期の記録保存を安定させる場合は、あとで有料の保存先や外部データベースを検討します。
