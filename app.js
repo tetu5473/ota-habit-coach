@@ -3001,8 +3001,7 @@ function buildWeeklyReview() {
 
 function buildCalendarDays(monthDate) {
   const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-  const mondayOffset = (firstDay.getDay() + 6) % 7;
-  const startDate = addDays(firstDay, -mondayOffset);
+  const startDate = addDays(firstDay, -firstDay.getDay());
   return Array.from({ length: 42 }, (_, index) => addDays(startDate, index));
 }
 
