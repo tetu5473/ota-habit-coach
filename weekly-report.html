@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="太田の習慣コーチについて、ここ1週間で行った制作内容を講師向けにまとめた報告メモです。">
+    <title>太田の習慣コーチ 1週間の制作メモ</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #eef1f4;
+        color: #1f2933;
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+        font-size: 18px;
+        font-weight: 500;
+        line-height: 1.85;
+      }
+
+      .page {
+        max-width: 1040px;
+        margin: 24px auto;
+        padding: 0 24px 40px;
+        border: 1px solid #d8dee6;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 16px 42px rgba(27, 36, 48, 0.12);
+      }
+
+      header {
+        margin: 0 -24px;
+        padding: 30px 24px 28px;
+        border-radius: 8px 8px 0 0;
+        background: #17476d;
+        color: #fff;
+        text-align: center;
+      }
+
+      header span {
+        display: block;
+        margin-bottom: 6px;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 32px;
+        line-height: 1.35;
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #d8dee6;
+        color: #15344e;
+        font-size: 24px;
+      }
+
+      h3 {
+        margin: 0 0 8px;
+        color: #245f8f;
+        font-size: 20px;
+      }
+
+      p {
+        margin: 0 0 14px;
+        font-weight: 600;
+      }
+
+      a {
+        color: #245f8f;
+        font-weight: 700;
+      }
+
+      .lead {
+        margin: 22px 0 0;
+        padding: 20px 22px;
+        border: 1px solid #c8d7e5;
+        border-radius: 8px;
+        background: #f7fbff;
+      }
+
+      .lead strong {
+        display: block;
+        margin-bottom: 6px;
+        color: #17476d;
+        font-size: 20px;
+      }
+
+      .section {
+        margin-top: 30px;
+      }
+
+      .summary-grid,
+      .pdca-grid,
+      .week-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .pdca-grid,
+      .week-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .card {
+        padding: 20px;
+        border: 1px solid #d8dee6;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(27, 36, 48, 0.07);
+      }
+
+      .card strong {
+        display: block;
+        margin-bottom: 6px;
+        color: #377b62;
+        font-size: 17px;
+      }
+
+      .card p {
+        margin: 0;
+      }
+
+      ul,
+      ol {
+        margin: 0;
+        padding-left: 24px;
+        font-weight: 600;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      .note-box {
+        padding: 22px;
+        border: 1px solid #cfe0d8;
+        border-radius: 8px;
+        background: #f8fbf9;
+      }
+
+      .note-box p {
+        margin-bottom: 10px;
+      }
+
+      .note-box p:last-child {
+        margin-bottom: 0;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .links a {
+        display: inline-grid;
+        min-height: 50px;
+        padding: 10px 18px;
+        place-items: center;
+        border: 1px solid #b8cee1;
+        border-radius: 8px;
+        background: #17476d;
+        color: #fff;
+        text-decoration: none;
+      }
+
+      .links a + a {
+        background: #fff;
+        color: #245f8f;
+      }
+
+      footer {
+        margin-top: 30px;
+        padding-top: 14px;
+        border-top: 1px solid #d8dee6;
+        color: #4f5f70;
+        font-size: 16px;
+        font-weight: 600;
+        text-align: center;
+      }
+
+      @media (max-width: 760px) {
+        body {
+          background: #fff;
+          font-size: 17px;
+        }
+
+        .page {
+          margin: 0;
+          padding: 0 16px 32px;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+
+        header {
+          margin: 0 -16px;
+          padding: 22px 16px 20px;
+          border-radius: 0;
+        }
+
+        h1 {
+          font-size: 25px;
+        }
+
+        h2 {
+          font-size: 22px;
+        }
+
+        .summary-grid,
+        .pdca-grid,
+        .week-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .card,
+        .lead,
+        .note-box {
+          padding: 18px;
+        }
+
+        .links {
+          display: grid;
+        }
+
+        .links a {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <span>学習・制作報告</span>
+        <h1>太田の習慣コーチ 1週間の制作メモ</h1>
+      </header>
+
+      <section class="lead" aria-label="報告の概要">
+        <strong>報告する内容</strong>
+        <p>
+          この1週間は、太田の習慣コーチを「外出先でも使える状態」と「自分で安全にテストできる状態」に近づけました。
+          特に、Render公開版、LINE連携、テスト送信、カレンダー表示を中心に改善しました。
+        </p>
+      </section>
+
+      <section class="section" aria-label="一週間でできたこと">
+        <h2>この1週間でやったこと</h2>
+        <div class="summary-grid">
+          <div class="card">
+            <strong>LINE連携を安定化</strong>
+            <p>本人と講師のLINEユーザーIDをRender環境変数に固定し、再デプロイ後も連携が戻るようにしました。</p>
+          </div>
+          <div class="card">
+            <strong>自分だけでテスト可能に</strong>
+            <p>講師に通知せず、自分のLINEだけに送れるテスト送信機能を追加しました。</p>
+          </div>
+          <div class="card">
+            <strong>画面表示を改善</strong>
+            <p>記録カレンダーを日曜始まりに変更し、普段見慣れた曜日順で確認できるようにしました。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-label="作業内容">
+        <h2>作業内容をわかりやすくまとめると</h2>
+        <div class="week-grid">
+          <div class="card">
+            <h3>1. Render公開版の確認</h3>
+            <ul>
+              <li>公開URLで太田の習慣コーチを開ける状態を確認しました。</li>
+              <li>スマホや外出先でも使うため、ローカルだけではなくRender側の設定を進めました。</li>
+              <li>LINE DevelopersのWebhookをRender用URLに変更し、検証が成功することを確認しました。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>2. LINE連携の原因確認</h3>
+            <ul>
+              <li>講師連携がうまく見えない原因を、Render側の連携状態から確認しました。</li>
+              <li>LINEからRenderに届いているか分かるよう、受信ログを追加しました。</li>
+              <li>本人・講師の連携状態をAPIで確認できるようにし、状態を切り分けました。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>3. LINE連携を消えにくくした</h3>
+            <ul>
+              <li>Renderの再デプロイで連携情報が消える可能性を確認しました。</li>
+              <li>本人用の <code>STUDENT_LINE_USER_ID</code> を追加しました。</li>
+              <li>講師用の <code>COACH_LINE_USER_ID</code> を正しい値に修正しました。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>4. 自分だけにテスト送信</h3>
+            <ul>
+              <li>講師に送らず、自分だけにLINEレポートを送れるボタンを追加しました。</li>
+              <li>送信後に「講師には送っていない」ことがアプリ画面で分かるようにしました。</li>
+              <li>実際に自分のLINEへ届くことを確認しました。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>5. カレンダー表示の修正</h3>
+            <ul>
+              <li>カレンダーの曜日を日曜日始まりに変更しました。</li>
+              <li>曜日表示だけでなく、日付の並びも日曜始まりに修正しました。</li>
+              <li>Render公開版にも反映されていることを確認しました。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>6. テストと記録</h3>
+            <ul>
+              <li>修正後に自動テストを実行し、5件すべて合格しました。</li>
+              <li>GitHubへ変更を反映し、Render公開版にも反映しました。</li>
+              <li>今後の設定が分かるよう、READMEと環境変数の見本も更新しました。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-label="できるようになったこと">
+        <h2>できるようになったこと</h2>
+        <div class="note-box">
+          <p>太田の習慣コーチをRender上で開き、LINE連携済みの状態で使えるようになりました。</p>
+          <p>講師に毎回テスト通知を送らなくても、自分だけにLINE送信して確認できます。</p>
+          <p>問題がなければ、通常の「保存してLINE送信」で講師と自分の両方に報告できます。</p>
+        </div>
+      </section>
+
+      <section class="section" aria-label="PDCA">
+        <h2>この1週間のPDCA</h2>
+        <div class="pdca-grid">
+          <div class="card">
+            <strong>P：計画</strong>
+            <p>太田の習慣コーチを、スマホや外出先でも使える公開アプリに近づける。LINE報告も、講師に迷惑をかけず自分で確認できる状態にする。</p>
+          </div>
+          <div class="card">
+            <strong>D：実行</strong>
+            <p>Render公開、LINE連携確認、環境変数固定、自分だけテスト送信、カレンダー日曜始まりの修正を行った。変更後はGitHubとRenderへ反映した。</p>
+          </div>
+          <div class="card">
+            <strong>C：確認</strong>
+            <p>本人・講師のLINE連携がRender上で連携済みになることを確認した。自分だけテスト送信では、自分のLINEに届き、講師には送られていないことも確認した。</p>
+          </div>
+          <div class="card">
+            <strong>A：改善</strong>
+            <p>次回は通常の本番送信を確認する。送信前の文面、講師に届く内容、カレンダーや履歴から過去記録を見返す流れをさらに確認する。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-label="今後の改善">
+        <h2>今後の改善</h2>
+        <ol>
+          <li>通常の「保存してLINE送信」で、講師と自分の両方に届くか確認する。</li>
+          <li>LINEに届く報告文が読みやすいか、自分だけテスト送信で確認する。</li>
+          <li>履歴やカレンダーから過去の記録を見返し、必要なら編集しやすくする。</li>
+          <li>長期的には、記録データをさらに安定して保存できる方法も検討する。</li>
+        </ol>
+        <div class="links">
+          <a href="https://ota-habit-coach.onrender.com" target="_blank" rel="noopener noreferrer">公開版の太田の習慣コーチを開く</a>
+          <a href="index.html">アプリ画面を見る</a>
+        </div>
+      </section>
+
+      <footer>
+        <p>作成日：2026年7月26日 / 太田の習慣コーチ 制作報告</p>
+      </footer>
+    </main>
+  </body>
+</html>
