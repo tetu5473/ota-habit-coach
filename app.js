@@ -258,6 +258,9 @@ const elements = {
   recordEditStatus: document.querySelector("#recordEditStatus"),
   closeRecordEditButton: document.querySelector("#closeRecordEditButton"),
   cancelRecordEditButton: document.querySelector("#cancelRecordEditButton"),
+  recordEditSaveButton: document.querySelector("#recordEditSaveButton"),
+  recordEditSelfTestButton: document.querySelector("#recordEditSelfTestButton"),
+  recordEditSendButton: document.querySelector("#recordEditSendButton"),
   scrollTopButton: document.querySelector("#scrollTopButton"),
   reportReadinessStatus: document.querySelector("#reportReadinessStatus"),
   recordSaveStatus: document.querySelector("#recordSaveStatus"),
@@ -1860,8 +1863,9 @@ function getWeeklyReportStyle() {
   return elements.weeklyReportStyle?.value || "standard";
 }
 
-async function sendDailyReportAgain() {
-  const recordDateKey = getRecordDateKey();
+async function sendDailyReportAgain(options = {}) {
+  const normalizedOptions = options instanceof Event ? {} : options;
+  const recordDateKey = normalizedOptions.date || getRecordDateKey();
   const savedRecords = state.checkIns.filter((checkIn) => checkIn.date === recordDateKey);
   if (!savedRecords.length) {
     const message = `${formatShortDate(recordDateKey)}の保存済み記録がまだありません。先に「保存してLINE送信」を押してください。`;
@@ -1879,6 +1883,7 @@ async function sendDailyReportAgain() {
       },
       body: JSON.stringify({
         date: recordDateKey,
+        reportTarget: normalizedOptions.target,
         reportStyle: getDailyReportStyle(),
       }),
     });
@@ -2008,8 +2013,9 @@ async function loadReportLogs() {
   }
 }
 
-async function sendSelfTestReportAgain() {
-  const recordDateKey = getRecordDateKey();
+async function sendSelfTestReportAgain(options = {}) {
+  const normalizedOptions = options instanceof Event ? {} : options;
+  const recordDateKey = normalizedOptions.date || getRecordDateKey();
   const savedRecords = state.checkIns.filter((checkIn) => checkIn.date === recordDateKey);
   if (!savedRecords.length) {
     const message = `${formatShortDate(recordDateKey)}の保存済み記録がまだありません。先に入力して「自分だけにテスト送信」を押してください。`;
@@ -2368,6 +2374,7 @@ async function handleRecordEditSubmit(event) {
   event.preventDefault();
   if (!editingRecordDate) return;
 
+  const afterSave = event.submitter?.dataset.afterSave || "save";
   const fromDate = editingRecordDate;
   const toDate = elements.recordEditDate.value;
   if (!isValidDateKey(toDate)) {
@@ -2421,8 +2428,10 @@ async function handleRecordEditSubmit(event) {
       };
     });
 
-  const submitButton = elements.recordEditForm.querySelector('button[type="submit"]');
-  submitButton.disabled = true;
+  const submitButtons = elements.recordEditForm.querySelectorAll('button[type="submit"]');
+  submitButtons.forEach((button) => {
+    button.disabled = true;
+  });
   elements.recordEditStatus.textContent = "変更を保存しています。";
   elements.recordEditStatus.dataset.status = "checking";
 
@@ -2466,11 +2475,19 @@ async function handleRecordEditSubmit(event) {
     const message = `${formatShortDate(toDate)}の報告内容を更新しました。LINEは送信していません。`;
     elements.lineReportStatus.textContent = `${message}必要な場合は、この日のレポートを再送してください。`;
     setRecordSaveStatus(message, "success");
+
+    if (afterSave === "self-test") {
+      await sendSelfTestReportAgain({ date: toDate });
+    } else if (afterSave === "resend") {
+      await sendDailyReportAgain({ date: toDate });
+    }
   } catch {
     elements.recordEditStatus.textContent = "サーバーに接続できないため、変更は保存していません。サーバーを起動してからもう一度お試しください。";
     elements.recordEditStatus.dataset.status = "error";
   } finally {
-    submitButton.disabled = false;
+    submitButtons.forEach((button) => {
+      button.disabled = false;
+    });
   }
 }
 

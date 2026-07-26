@@ -1669,12 +1669,19 @@ fieldset {
 .record-edit-actions {
   position: sticky;
   bottom: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr) minmax(180px, 1.2fr) auto;
   justify-content: flex-end;
   gap: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
   background: var(--surface);
+}
+
+.record-edit-actions .secondary-save-button {
+  border-color: rgba(54, 166, 106, 0.28);
+  background: #f6fbf7;
+  color: var(--green);
 }
 
 .line-link-card {
@@ -2592,8 +2599,12 @@ fieldset {
     grid-template-columns: 1fr;
   }
 
+  .record-edit-actions {
+    grid-template-columns: 1fr;
+  }
+
   .record-edit-actions > * {
-    flex: 1 1 0;
+    width: 100%;
   }
 
   .calendar-header {
