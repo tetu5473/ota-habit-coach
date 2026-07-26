@@ -2301,7 +2301,7 @@ function buildRecordEditItemHtml(record) {
       </div>
       <label>
         今日の目安
-        <input class="record-edit-minimum" type="text" maxlength="120" value="${escapeHtml(plannedMinimumAction)}" required>
+        <input class="record-edit-minimum" type="text" maxlength="120" value="${escapeHtml(plannedMinimumAction)}">
       </label>
       <fieldset class="record-edit-result-field">
         <legend>結果</legend>
@@ -2405,7 +2405,10 @@ async function handleRecordEditSubmit(event) {
         (total, session) => total + Number(calculateMinutesBetween(session.startTime, session.endTime) || 0),
         0,
       );
-      const plannedMinimumAction = item.querySelector(".record-edit-minimum").value.trim();
+      const plannedMinimumAction = item.querySelector(".record-edit-minimum").value.trim()
+        || sourceRecord?.plannedMinimumAction
+        || habit.minimumAction
+        || "今日の目安なし";
       const checkIn = {
         ...sourceRecord,
         date: toDate,
