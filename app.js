@@ -52,6 +52,12 @@ const moodLabels = {
   hard: "しんどい",
 };
 
+const reportStyleLabels = {
+  short: "短め",
+  standard: "標準",
+  detailed: "詳しめ",
+};
+
 const conditionLabels = {
   good: "元気な日",
   normal: "普通の日",
@@ -253,6 +259,15 @@ const elements = {
   scrollTopButton: document.querySelector("#scrollTopButton"),
   reportReadinessStatus: document.querySelector("#reportReadinessStatus"),
   recordSaveStatus: document.querySelector("#recordSaveStatus"),
+  dailyReportStyle: document.querySelector("#dailyReportStyle"),
+  weeklyReportStyle: document.querySelector("#weeklyReportStyle"),
+  buildWeeklyReportButton: document.querySelector("#buildWeeklyReportButton"),
+  copyWeeklyReportButton: document.querySelector("#copyWeeklyReportButton"),
+  weeklyReportPreview: document.querySelector("#weeklyReportPreview"),
+  weeklyReportStatus: document.querySelector("#weeklyReportStatus"),
+  weeklyScoreGrid: document.querySelector("#weeklyScoreGrid"),
+  weeklyEditDate: document.querySelector("#weeklyEditDate"),
+  openWeeklyEditButton: document.querySelector("#openWeeklyEditButton"),
   lineWebhookStatus: document.querySelector("#lineWebhookStatus"),
   calendarMonthLabel: document.querySelector("#calendarMonthLabel"),
   calendarGrid: document.querySelector("#calendarGrid"),
@@ -315,6 +330,15 @@ function init() {
   elements.scrollTopButton?.addEventListener("click", scrollToTop);
   elements.pageTabs?.addEventListener("click", handlePageTabClick);
   elements.sendDailyReportButton.addEventListener("click", sendDailyReportAgain);
+  elements.buildWeeklyReportButton?.addEventListener("click", buildAndShowWeeklyReport);
+  elements.copyWeeklyReportButton?.addEventListener("click", copyWeeklyReport);
+  elements.openWeeklyEditButton?.addEventListener("click", openWeeklyEditDate);
+  elements.weeklyReportStyle?.addEventListener("change", () => {
+    if (!elements.weeklyReportPreview?.hidden) buildAndShowWeeklyReport();
+  });
+  elements.dailyReportStyle?.addEventListener("change", () => {
+    if (!elements.dailyLineReportPreview?.hidden || !elements.lineReportPreview?.hidden) previewDailyReport();
+  });
   [elements.historyMonthFilter, elements.historyHabitFilter, elements.historyStatusFilter].forEach((filter) => {
     filter?.addEventListener("change", renderHistory);
   });
@@ -324,6 +348,7 @@ function init() {
   elements.resetDataButton.addEventListener("click", resetData);
   setupVoiceInput();
   renderMultiHabitRecordForms();
+  if (elements.weeklyEditDate) elements.weeklyEditDate.value = todayKey;
   updatePlanInput();
   renderFocusTimer();
   renderTestChecklist();
@@ -1548,6 +1573,7 @@ function saveHabitRecords(records, options = {}) {
     plannedMinimumAction,
   })), {
     reportTarget: options.reportTarget,
+    reportStyle: getDailyReportStyle(),
   });
   render({
     type: options.latestEventType || "checked-in",
@@ -1712,6 +1738,7 @@ async function syncRecordsToServer(records, options = {}) {
       body: JSON.stringify({
         records,
         reportTarget: options.reportTarget,
+        reportStyle: options.reportStyle,
       }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1811,6 +1838,14 @@ function setRecordSaveStatus(message, type = "neutral") {
   elements.recordSaveStatus.dataset.status = type;
 }
 
+function getDailyReportStyle() {
+  return elements.dailyReportStyle?.value || "standard";
+}
+
+function getWeeklyReportStyle() {
+  return elements.weeklyReportStyle?.value || "standard";
+}
+
 async function sendDailyReportAgain() {
   const recordDateKey = getRecordDateKey();
   const savedRecords = state.checkIns.filter((checkIn) => checkIn.date === recordDateKey);
@@ -1828,13 +1863,59 @@ async function sendDailyReportAgain() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ date: recordDateKey }),
+      body: JSON.stringify({
+        date: recordDateKey,
+        reportStyle: getDailyReportStyle(),
+      }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
     elements.lineReportStatus.textContent = buildLineReportStatus(result.report);
   } catch {
     elements.lineReportStatus.textContent = "日次レポート再送APIに接続できませんでした。";
+  }
+}
+
+function buildAndShowWeeklyReport() {
+  const report = buildWeeklyReportText(getWeeklyReportStyle());
+  if (!elements.weeklyReportPreview) return;
+  elements.weeklyReportPreview.innerHTML = buildLineReportPreviewHtml(report);
+  elements.weeklyReportPreview.dataset.reportText = report;
+  elements.weeklyReportPreview.hidden = false;
+  if (elements.copyWeeklyReportButton) elements.copyWeeklyReportButton.disabled = false;
+  if (elements.weeklyReportStatus) {
+    elements.weeklyReportStatus.textContent = `今週の報告文を作成しました。形式は${reportStyleLabels[getWeeklyReportStyle()]}です。`;
+  }
+}
+
+async function copyWeeklyReport() {
+  const reportText = elements.weeklyReportPreview?.dataset.reportText || "";
+  if (!reportText) {
+    if (elements.weeklyReportStatus) elements.weeklyReportStatus.textContent = "先に週次レポートを作成してください。";
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(reportText);
+    if (elements.weeklyReportStatus) elements.weeklyReportStatus.textContent = "週次レポートをコピーしました。ZoomやLINEに貼り付けできます。";
+  } catch {
+    if (elements.weeklyReportStatus) elements.weeklyReportStatus.textContent = "コピーできませんでした。表示された文面を選択してコピーしてください。";
+  }
+}
+
+function openWeeklyEditDate() {
+  const dateKey = elements.weeklyEditDate?.value || todayKey;
+  if (!isValidDateKey(dateKey)) {
+    if (elements.weeklyReportStatus) elements.weeklyReportStatus.textContent = "編集したい日付を正しく選んでください。";
+    return;
+  }
+
+  selectRecordDate(dateKey);
+  if (state.checkIns.some((checkIn) => checkIn.date === dateKey)) {
+    openRecordEditModal(dateKey, true);
+  } else {
+    document.querySelector("#dailyRecordSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setRecordSaveStatus(`${formatShortDate(dateKey)}には保存済み記録がありません。この日の記録欄を開きました。`, "pending");
   }
 }
 
@@ -1858,6 +1939,7 @@ async function sendSelfTestReportAgain() {
       body: JSON.stringify({
         date: recordDateKey,
         reportTarget: "student",
+        reportStyle: getDailyReportStyle(),
       }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1877,13 +1959,15 @@ function previewDailyReport() {
   elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}の入力中のLINE文面を確認しています。`;
   hideLineReportPreviews();
   const records = collectMultiHabitRecords(recordDateKey);
-  const text = buildDraftDailyReportMessage(recordDateKey, records);
+  const text = buildDraftDailyReportMessage(recordDateKey, records, getDailyReportStyle());
   showLineReportPreviews(text);
-  elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}の入力中のLINE文面を表示しました。実際の送信はしていません。`;
+  elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}の入力中のLINE文面を表示しました。報告文は${reportStyleLabels[getDailyReportStyle()]}です。実際の送信はしていません。`;
   setRecordSaveStatus(`${formatShortDate(recordDateKey)}の入力中のLINE文面を表示しました。保存・送信はしていません。`, "neutral");
 }
 
-function buildDraftDailyReportMessage(date, records) {
+function buildDraftDailyReportMessage(date, records, style = "standard") {
+  if (style === "short") return buildShortDraftDailyReportMessage(date, records);
+
   const lines = [
     "【太田の習慣レポート】",
     `記録日: ${formatShortDate(date)}`,
@@ -1894,12 +1978,32 @@ function buildDraftDailyReportMessage(date, records) {
       plannedMinimumAction,
       checkIn,
       index,
+      style,
     )),
   ];
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, index) {
+function buildShortDraftDailyReportMessage(date, records) {
+  const doneCount = records.filter(({ checkIn }) => checkIn.status === "done").length;
+  const partialCount = records.filter(({ checkIn }) => checkIn.status === "partial").length;
+  const missedCount = records.filter(({ checkIn }) => checkIn.status === "missed").length;
+  const learningMinutes = records.reduce((total, { checkIn }) => total + Number(checkIn.learningMinutes || 0), 0);
+  const lines = [
+    "【太田の習慣レポート】",
+    `記録日: ${formatShortDate(date)}`,
+    `結果: できた${doneCount} / 少し${partialCount} / 未達${missedCount}`,
+    learningMinutes ? `学習: ${formatDuration(learningMinutes)}` : "",
+    "",
+    ...records.map(({ habit, checkIn }) => {
+      const note = summarizeDraftText(checkIn.note || "", 42);
+      return `・${habit.title}: ${statusLabels[checkIn.status] || checkIn.status}${note ? ` / ${note}` : ""}`;
+    }),
+  ].filter(Boolean);
+  return lines.join("\n").trim();
+}
+
+function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, index, style = "standard") {
   const learningDuration = formatDuration(Number(checkIn.learningMinutes));
   const learningTimeRange = formatLearningTimeRange(checkIn);
   const lines = [
@@ -1911,8 +2015,13 @@ function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, ind
   ].filter(Boolean);
 
   if (checkIn.note) {
-    lines.push("・メモ:");
-    lines.push(...formatDraftReportNote(checkIn.note));
+    if (style === "detailed") {
+      lines.push("・メモ:");
+      lines.push(...formatDraftReportNote(checkIn.note));
+    } else {
+      const summary = summarizeDraftText(checkIn.note, 70);
+      if (summary) lines.push(`・メモ: ${summary}`);
+    }
   }
 
   lines.push("");
@@ -2515,6 +2624,7 @@ function renderBlockerInsights() {
 function renderWeeklyReview() {
   const review = buildWeeklyReview();
   elements.weeklyReview.innerHTML = "";
+  renderWeeklyScoreGrid();
 
   review.forEach((item) => {
     const card = document.createElement("article");
@@ -2524,6 +2634,27 @@ function renderWeeklyReview() {
       <p>${escapeHtml(item.body)}</p>
     `;
     elements.weeklyReview.append(card);
+  });
+}
+
+function renderWeeklyScoreGrid() {
+  if (!elements.weeklyScoreGrid) return;
+  const summary = buildWeeklySummary();
+  elements.weeklyScoreGrid.innerHTML = "";
+
+  [
+    { label: "記録日数", value: `${summary.activeDates}日` },
+    { label: "達成・少し", value: `${summary.successCount}件` },
+    { label: "未達", value: `${summary.missedCount}件` },
+    { label: "学習合計", value: summary.learningMinutes ? formatDuration(summary.learningMinutes) : "-" },
+  ].forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "weekly-score-card";
+    card.innerHTML = `
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+    `;
+    elements.weeklyScoreGrid.append(card);
   });
 }
 
@@ -2969,14 +3100,7 @@ function buildBlockerCountermeasure(label) {
 }
 
 function buildWeeklyReview() {
-  const weekStart = addDays(today, -6);
-  const recent = state.checkIns.filter((checkIn) => {
-    const checkInDate = new Date(`${checkIn.date}T00:00:00`);
-    return checkInDate >= new Date(formatDateKey(weekStart) + "T00:00:00");
-  });
-  const successCount = recent.filter((item) => item.status === "done" || item.status === "partial").length;
-  const missedCount = recent.filter((item) => item.status === "missed").length;
-  const activeDates = new Set(recent.map((item) => item.date)).size;
+  const { recent, successCount, missedCount, activeDates } = buildWeeklySummary();
   const hardestHabit = findHardestHabit(recent);
 
   return [
@@ -2997,6 +3121,124 @@ function buildWeeklyReview() {
       body: hardestHabit ? `${hardestHabit.title}が止まりやすいです。記録だけでも残す形にすると戻りやすくなります。` : "まだ大きな偏りはありません。",
     },
   ];
+}
+
+function buildWeeklySummary() {
+  const weekStart = addDays(today, -6);
+  const startKey = formatDateKey(weekStart);
+  const recent = state.checkIns.filter((checkIn) => {
+    const checkInDate = new Date(`${checkIn.date}T00:00:00`);
+    return checkInDate >= new Date(`${startKey}T00:00:00`) && checkInDate <= new Date(`${todayKey}T23:59:59`);
+  });
+  const successCount = recent.filter((item) => item.status === "done" || item.status === "partial").length;
+  const missedCount = recent.filter((item) => item.status === "missed").length;
+  const activeDates = new Set(recent.map((item) => item.date)).size;
+  const learningMinutes = recent.reduce((total, item) => total + Number(item.learningMinutes || 0), 0);
+  const byHabit = state.habits
+    .filter((habit) => habit.active || recent.some((record) => record.habitId === habit.id))
+    .map((habit) => {
+      const records = recent.filter((record) => record.habitId === habit.id);
+      return {
+        habit,
+        total: records.length,
+        success: records.filter((record) => record.status === "done" || record.status === "partial").length,
+        missed: records.filter((record) => record.status === "missed").length,
+      };
+    });
+  return {
+    startKey,
+    endKey: todayKey,
+    recent,
+    successCount,
+    missedCount,
+    activeDates,
+    learningMinutes,
+    byHabit,
+  };
+}
+
+function buildWeeklyReportText(style = "standard") {
+  const summary = buildWeeklySummary();
+  if (style === "short") return buildShortWeeklyReportText(summary);
+  if (style === "detailed") return buildDetailedWeeklyReportText(summary);
+  return buildStandardWeeklyReportText(summary);
+}
+
+function buildStandardWeeklyReportText(summary) {
+  const hardestHabit = findHardestHabit(summary.recent);
+  const lines = [
+    "【太田の習慣コーチ 週次報告】",
+    `期間: ${formatShortDate(summary.startKey)}〜${formatShortDate(summary.endKey)}`,
+    "",
+    "【今週の結果】",
+    `・記録した日: ${summary.activeDates}日`,
+    `・達成・少し: ${summary.successCount}件`,
+    `・未達: ${summary.missedCount}件`,
+    summary.learningMinutes ? `・学習合計: ${formatDuration(summary.learningMinutes)}` : "",
+    "",
+    "【習慣別】",
+    ...summary.byHabit.map(({ habit, success, missed, total }) => (
+      `・${habit.title}: 記録${total}件 / 達成・少し${success}件 / 未達${missed}件`
+    )),
+    "",
+    "【確認】",
+    hardestHabit
+      ? `・${hardestHabit.title}が止まりやすい傾向。次は最低ラインをさらに小さくして戻りやすくする。`
+      : "・大きな偏りはない。今の記録ペースを続ける。",
+    "",
+    "【次の改善】",
+    "・LINE報告前に自分だけテスト送信で文面を確認する。",
+    "・日付を間違えた記録はカレンダーや履歴から編集する。",
+  ].filter(Boolean);
+  return lines.join("\n").trim();
+}
+
+function buildShortWeeklyReportText(summary) {
+  const habitText = summary.byHabit
+    .map(({ habit, success, total }) => `${habit.title}${success}/${total}`)
+    .join("、");
+  return [
+    "【太田の習慣コーチ 週次報告】",
+    `期間: ${formatShortDate(summary.startKey)}〜${formatShortDate(summary.endKey)}`,
+    `記録${summary.activeDates}日、達成・少し${summary.successCount}件、未達${summary.missedCount}件。`,
+    summary.learningMinutes ? `学習合計は${formatDuration(summary.learningMinutes)}。` : "",
+    habitText ? `習慣別: ${habitText}` : "",
+    "次は、送信前確認と過去記録編集を使いながら、報告の抜けを減らす。",
+  ].filter(Boolean).join("\n");
+}
+
+function buildDetailedWeeklyReportText(summary) {
+  const lines = [
+    buildStandardWeeklyReportText(summary),
+    "",
+    "【日別の記録】",
+  ];
+  const recordsByDate = new Map();
+  summary.recent
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach((record) => {
+      if (!recordsByDate.has(record.date)) recordsByDate.set(record.date, []);
+      recordsByDate.get(record.date).push(record);
+    });
+
+  if (!recordsByDate.size) {
+    lines.push("・今週の保存済み記録はまだありません。");
+  } else {
+    recordsByDate.forEach((records, date) => {
+      const dayText = records
+        .map((record) => `${findHabit(record.habitId).title}:${statusLabels[record.status] || record.status}`)
+        .join(" / ");
+      lines.push(`・${formatShortDate(date)} ${dayText}`);
+    });
+  }
+
+  lines.push("");
+  lines.push("【P：計画】外出先でも使える状態に近づけ、報告前に自分で確認できる流れを作る。");
+  lines.push("【D：実行】記録、LINE確認、週次まとめ、過去記録編集をアプリ内で扱いやすくする。");
+  lines.push("【C：確認】日々の記録と週の達成状況を見比べ、報告前の不安を減らす。");
+  lines.push("【A：改善】次回は通常送信と週次報告の運用を確認し、必要なら文面をさらに短くする。");
+  return lines.join("\n").trim();
 }
 
 function buildCalendarDays(monthDate) {

@@ -110,7 +110,10 @@ async function handleApi(request, response, url) {
   if (request.method === "POST" && url.pathname === "/api/records") {
     const body = await readJsonBody(request);
     const savedRecord = await saveDailyRecord(body);
-    const reportResult = await sendDailyReport(savedRecord, { target: body.reportTarget });
+    const reportResult = await sendDailyReport(savedRecord, {
+      target: body.reportTarget,
+      style: body.reportStyle,
+    });
     sendJson(response, 200, {
       ok: true,
       record: savedRecord,
@@ -123,7 +126,10 @@ async function handleApi(request, response, url) {
     const body = await readJsonBody(request);
     const savedRecords = await saveDailyRecords(Array.isArray(body.records) ? body.records : []);
     const reportResult = savedRecords.length
-      ? await sendDailyReportForDate(savedRecords[0].date, { target: body.reportTarget })
+      ? await sendDailyReportForDate(savedRecords[0].date, {
+        target: body.reportTarget,
+        style: body.reportStyle,
+      })
       : { sent: false, reason: "no_records_for_date" };
     sendJson(response, 200, {
       ok: true,
@@ -137,6 +143,7 @@ async function handleApi(request, response, url) {
     const body = await readJsonBody(request);
     const reportResult = await sendDailyReportForDate(body.date || formatDateKey(new Date()), {
       target: body.reportTarget,
+      style: body.reportStyle,
     });
     sendJson(response, 200, {
       ok: true,
@@ -152,7 +159,7 @@ async function handleApi(request, response, url) {
     sendJson(response, 200, {
       date,
       recordCount: records.length,
-      text: records.length ? buildDailyReportMessage(db, date) : "",
+      text: records.length ? buildDailyReportMessage(db, date, url.searchParams.get("style") || "standard") : "",
     });
     return;
   }
@@ -387,7 +394,7 @@ async function sendDailyReportForDate(date, options = {}) {
     return { sent: false, reason: "no_records_for_date" };
   }
 
-  const text = buildDailyReportMessage(db, date);
+  const text = buildDailyReportMessage(db, date, options.style || "standard");
   if (options.target === "student") {
     const line = await sendLineDailyReportToStudent(db.users.student, text);
     return {
@@ -511,20 +518,43 @@ async function sendEmailViaGoogleScript({ to, subject, text }) {
   }
 }
 
-function buildDailyReportMessage(db, date) {
+function buildDailyReportMessage(db, date, style = "standard") {
   const records = db.dailyRecords.filter((record) => record.date === date);
+  if (style === "short") return buildShortDailyReportMessage(records, date);
+
   const lines = [
     "【太田の習慣レポート】",
     `記録日: ${formatJapaneseDate(date)}`,
     "",
     "【習慣別の記録】",
-    ...records.flatMap((record, index) => formatDailyRecordSection(record, index)),
+    ...records.flatMap((record, index) => formatDailyRecordSection(record, index, style)),
   ];
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+function buildShortDailyReportMessage(records, date) {
+  const doneCount = records.filter((record) => record.status === "done").length;
+  const partialCount = records.filter((record) => record.status === "partial").length;
+  const missedCount = records.filter((record) => record.status === "missed").length;
+  const learningMinutes = records.reduce((total, record) => {
+    const minutes = Number(record.learningMinutes);
+    return Number.isFinite(minutes) ? total + minutes : total;
+  }, 0);
+  return [
+    "【太田の習慣レポート】",
+    `記録日: ${formatJapaneseDate(date)}`,
+    `結果: できた${doneCount} / 少し${partialCount} / 未達${missedCount}`,
+    learningMinutes ? `学習: ${formatDuration(learningMinutes)}` : "",
+    "",
+    ...records.map((record) => {
+      const note = summarizeText(record.note || "", 42);
+      return `・${record.habitTitle}: ${statusLabel(record.status)}${note ? ` / ${note}` : ""}`;
+    }),
+  ].filter(Boolean).join("\n").trim();
+}
+
 // Formats each habit block so LINE reports stay scannable even on a phone screen.
-function formatDailyRecordSection(record, index) {
+function formatDailyRecordSection(record, index, style = "standard") {
   const learningDuration = formatDuration(Number(record.learningMinutes));
   const lines = [
     `${index + 1}. ${record.habitTitle}`,
@@ -535,8 +565,13 @@ function formatDailyRecordSection(record, index) {
   ].filter(Boolean);
 
   if (record.note) {
-    lines.push("・メモ:");
-    lines.push(...formatReportNote(record.note));
+    if (style === "detailed") {
+      lines.push("・メモ:");
+      lines.push(...formatReportNote(record.note));
+    } else {
+      const summary = summarizeText(record.note, 70);
+      if (summary) lines.push(`・メモ: ${summary}`);
+    }
   }
 
   lines.push("");

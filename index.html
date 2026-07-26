@@ -175,6 +175,19 @@
               </div>
               <p class="voice-status" id="voiceStatus" role="status">音声入力は対応ブラウザで使えます。</p>
               <div class="record-actions">
+                <div class="send-target-card" aria-label="LINE送信先の確認">
+                  <strong>通常送信</strong>
+                  <span>講師と自分へ送信</span>
+                  <small>テスト送信は自分だけ</small>
+                </div>
+                <label class="report-style-field" for="dailyReportStyle">
+                  報告文
+                  <select id="dailyReportStyle">
+                    <option value="standard" selected>標準</option>
+                    <option value="short">短め</option>
+                    <option value="detailed">詳しめ</option>
+                  </select>
+                </label>
                 <button class="ghost-button compact-button" id="dailyPreviewReportButton" type="button">送信前に確認</button>
                 <button class="ghost-button compact-button self-test-button" id="selfTestReportButton" type="button">自分だけにテスト送信</button>
                 <button class="primary-button" type="submit">保存してLINE送信</button>
@@ -208,6 +221,16 @@
               <div class="section-heading">
                 <p class="helper-text">連携コードやWebhook URLを確認できます。</p>
                 <button class="ghost-button compact-button" id="refreshLineStatusButton" type="button">更新</button>
+              </div>
+              <div class="line-send-mode-grid">
+                <article>
+                  <strong>保存してLINE送信</strong>
+                  <p>講師と自分へ同じ報告を送信します。</p>
+                </article>
+                <article>
+                  <strong>自分だけにテスト送信</strong>
+                  <p>講師には送らず、自分のLINEだけで見た目を確認します。</p>
+                </article>
               </div>
               <div class="line-link-grid">
                 <article class="line-link-card">
@@ -306,7 +329,27 @@
               <span class="summary-hint">開く</span>
             </summary>
             <div class="compact-details-body">
+              <div class="weekly-toolbar">
+                <label class="report-style-field" for="weeklyReportStyle">
+                  週次報告
+                  <select id="weeklyReportStyle">
+                    <option value="standard" selected>標準</option>
+                    <option value="short">短め</option>
+                    <option value="detailed">詳しめ</option>
+                  </select>
+                </label>
+                <button class="primary-button compact-button" id="buildWeeklyReportButton" type="button">週次レポート作成</button>
+                <button class="ghost-button compact-button" id="copyWeeklyReportButton" type="button" disabled>コピー</button>
+              </div>
+              <div class="weekly-score-grid" id="weeklyScoreGrid"></div>
               <div class="review-grid" id="weeklyReview"></div>
+              <div class="weekly-edit-helper">
+                <label for="weeklyEditDate">過去記録を編集</label>
+                <input id="weeklyEditDate" type="date">
+                <button class="ghost-button compact-button" id="openWeeklyEditButton" type="button">日付を開く</button>
+              </div>
+              <p class="helper-text" id="weeklyReportStatus">週次レポートを作成すると、ここにプレビューが表示されます。</p>
+              <div class="line-report-preview weekly-report-preview" id="weeklyReportPreview" hidden></div>
             </div>
           </details>
         </section>
