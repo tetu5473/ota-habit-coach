@@ -1524,7 +1524,9 @@ fieldset {
   inset: 0;
   z-index: 40;
   display: grid;
-  place-items: center;
+  align-items: start;
+  justify-items: center;
+  overflow-y: auto;
   padding: 18px;
 }
 
@@ -1563,13 +1565,15 @@ fieldset {
 
 .record-edit-dialog {
   width: min(780px, 100%);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .record-edit-form {
   display: grid;
   gap: 14px;
-  max-height: calc(min(82dvh, 760px) - 76px);
-  overflow-y: auto;
+  overflow: visible;
   padding: 2px 4px 4px 2px;
 }
 
@@ -2587,12 +2591,8 @@ fieldset {
   }
 
   .record-edit-dialog {
-    max-height: 92dvh;
+    max-height: calc(100dvh - 24px);
     padding: 12px;
-  }
-
-  .record-edit-form {
-    max-height: calc(92dvh - 72px);
   }
 
   .record-edit-date-row {
