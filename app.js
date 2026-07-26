@@ -2439,40 +2439,12 @@ async function handleRecordEditSubmit(event) {
   elements.recordEditStatus.dataset.status = "checking";
 
   try {
-    const response = await fetch(`${API_BASE}/api/records/bulk`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fromDate,
-        records: editedRecords.map(({ serverRecord }) => serverRecord),
-      }),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json();
+    const result = await saveEditedRecordsToServer(fromDate, editedRecords.map(({ serverRecord }) => serverRecord));
     if (!Array.isArray(result.records) || result.records.length !== editedRecords.length) {
       throw new Error("edited_records_mismatch");
     }
 
-    editedRecords.forEach(({ checkIn, plannedMinimumAction }) => {
-      state.checkIns = state.checkIns.filter(
-        (record) => !(record.habitId === checkIn.habitId && (record.date === fromDate || record.date === toDate)),
-      );
-      state.checkIns.push(checkIn);
-      state.plans = state.plans.filter(
-        (plan) => !(plan.habitId === checkIn.habitId && (plan.date === fromDate || plan.date === toDate)),
-      );
-      state.plans.push({
-        date: toDate,
-        habitId: checkIn.habitId,
-        plannedMinimumAction,
-      });
-    });
-
-    selectedCalendarDate = toDate;
-    calendarCursor = new Date(`${toDate}T00:00:00`);
-    saveState();
+    applyEditedRecordsLocally(fromDate, toDate, editedRecords);
     closeRecordEditModal();
     render();
     const message = `${formatShortDate(toDate)}の報告内容を更新しました。LINEは送信していません。`;
@@ -2485,13 +2457,70 @@ async function handleRecordEditSubmit(event) {
       await sendDailyReportAgain({ date: toDate });
     }
   } catch {
-    elements.recordEditStatus.textContent = "サーバーに接続できないため、変更は保存していません。サーバーを起動してからもう一度お試しください。";
+    applyEditedRecordsLocally(fromDate, toDate, editedRecords);
+    closeRecordEditModal();
+    render();
+    const message = "サーバー更新は確認できませんでしたが、ブラウザ内には変更を保存しました。LINE再送はRenderの接続状態を確認してからもう一度押してください。";
+    elements.lineReportStatus.textContent = message;
+    setRecordSaveStatus(message, "pending");
     elements.recordEditStatus.dataset.status = "error";
   } finally {
     submitButtons.forEach((button) => {
       button.disabled = false;
     });
   }
+}
+
+function applyEditedRecordsLocally(fromDate, toDate, editedRecords) {
+  editedRecords.forEach(({ checkIn, plannedMinimumAction }) => {
+    state.checkIns = state.checkIns.filter(
+      (record) => !(record.habitId === checkIn.habitId && (record.date === fromDate || record.date === toDate)),
+    );
+    state.checkIns.push(checkIn);
+    state.plans = state.plans.filter(
+      (plan) => !(plan.habitId === checkIn.habitId && (plan.date === fromDate || plan.date === toDate)),
+    );
+    state.plans.push({
+      date: toDate,
+      habitId: checkIn.habitId,
+      plannedMinimumAction,
+    });
+  });
+  selectedCalendarDate = toDate;
+  calendarCursor = new Date(`${toDate}T00:00:00`);
+  saveState();
+}
+
+async function saveEditedRecordsToServer(fromDate, records) {
+  const patchResponse = await fetch(`${API_BASE}/api/records/bulk`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fromDate,
+      records,
+    }),
+  });
+  if (patchResponse.ok) return patchResponse.json();
+
+  if (patchResponse.status !== 404) {
+    throw new Error(`HTTP ${patchResponse.status}`);
+  }
+
+  const saveResponse = await fetch(`${API_BASE}/api/records/bulk`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      records,
+      reportTarget: "none",
+      reportStyle: getDailyReportStyle(),
+    }),
+  });
+  if (!saveResponse.ok) throw new Error(`HTTP ${saveResponse.status}`);
+  return saveResponse.json();
 }
 
 function closeRecordEditModal() {

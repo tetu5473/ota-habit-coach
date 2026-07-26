@@ -142,7 +142,9 @@ async function handleApi(request, response, url) {
   if (request.method === "POST" && url.pathname === "/api/records/bulk") {
     const body = await readJsonBody(request);
     const savedRecords = await saveDailyRecords(Array.isArray(body.records) ? body.records : []);
-    const reportResult = savedRecords.length
+    const reportResult = body.reportTarget === "none"
+      ? { sent: false, reason: "save_only" }
+      : savedRecords.length
       ? await sendDailyReportForDate(savedRecords[0].date, {
         target: body.reportTarget,
         style: body.reportStyle,
