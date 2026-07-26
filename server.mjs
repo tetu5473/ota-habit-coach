@@ -752,13 +752,8 @@ function formatDailyRecordSection(record, index, style = "standard") {
   ].filter(Boolean);
 
   if (record.note) {
-    if (style === "detailed") {
-      lines.push("・メモ:");
-      lines.push(...formatReportNote(record.note));
-    } else {
-      const summary = summarizeText(record.note, 70);
-      if (summary) lines.push(`・メモ: ${summary}`);
-    }
+    lines.push("・メモ:");
+    lines.push(...formatReportNote(record.note));
   }
 
   lines.push("");

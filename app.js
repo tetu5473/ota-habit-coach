@@ -2105,13 +2105,8 @@ function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, ind
   ].filter(Boolean);
 
   if (checkIn.note) {
-    if (style === "detailed") {
-      lines.push("・メモ:");
-      lines.push(...formatDraftReportNote(checkIn.note));
-    } else {
-      const summary = summarizeDraftText(checkIn.note, 70);
-      if (summary) lines.push(`・メモ: ${summary}`);
-    }
+    lines.push("・メモ:");
+    lines.push(...formatDraftReportNote(checkIn.note));
   }
 
   lines.push("");
