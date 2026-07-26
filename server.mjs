@@ -9,6 +9,7 @@ const env = await loadEnv();
 const port = Number(env.PORT || 8001);
 const dataDir = resolve(rootDir, env.DATA_DIR || "data");
 const dbPath = join(dataDir, "habit-coach-db.json");
+const weeklyReportDir = join(dataDir, "weekly-reports");
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -66,6 +67,22 @@ async function handleApi(request, response, url) {
     const db = await readDb();
     sendJson(response, 200, {
       records: db.dailyRecords || [],
+    });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/reports/logs") {
+    const db = await readDb();
+    sendJson(response, 200, {
+      logs: db.reportLogs || [],
+    });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/reports/weekly") {
+    const db = await readDb();
+    sendJson(response, 200, {
+      reports: db.weeklyReports || [],
     });
     return;
   }
@@ -160,6 +177,21 @@ async function handleApi(request, response, url) {
       date,
       recordCount: records.length,
       text: records.length ? buildDailyReportMessage(db, date, url.searchParams.get("style") || "standard") : "",
+    });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/reports/weekly-pages") {
+    const body = await readJsonBody(request);
+    const report = await saveWeeklyReportPage({
+      startDate: body.startDate,
+      endDate: body.endDate,
+      style: body.style,
+      text: body.text,
+    });
+    sendJson(response, 200, {
+      ok: true,
+      report,
     });
     return;
   }
@@ -397,24 +429,179 @@ async function sendDailyReportForDate(date, options = {}) {
   const text = buildDailyReportMessage(db, date, options.style || "standard");
   if (options.target === "student") {
     const line = await sendLineDailyReportToStudent(db.users.student, text);
-    return {
+    const result = {
       sent: line.sent,
       reason: line.reason,
       target: "student",
       line,
       email: { sent: false, reason: "test_mode" },
     };
+    await appendReportLog({ date, target: "student", style: options.style || "standard", result });
+    return result;
   }
 
   // Send the same daily report to the coach and to the student for confirmation.
   const line = await sendLineDailyReport(db.users.coach, db.users.student, text);
   const email = await sendEmailDailyReport(text, date);
-  return {
+  const result = {
     sent: line.sent,
     reason: line.reason,
     line,
     email,
   };
+  await appendReportLog({ date, target: "coach_and_student", style: options.style || "standard", result });
+  return result;
+}
+
+async function appendReportLog({ date, target, style, result }) {
+  const db = await readDb();
+  db.reportLogs = Array.isArray(db.reportLogs) ? db.reportLogs : [];
+  db.reportLogs.unshift({
+    id: randomUUID(),
+    date,
+    target,
+    style,
+    sent: Boolean(result?.sent || result?.line?.sent || result?.email?.sent),
+    lineSent: Boolean(result?.line?.sent || result?.sent),
+    emailSent: Boolean(result?.email?.sent),
+    reason: result?.reason || result?.line?.reason || result?.email?.reason || "",
+    createdAt: new Date().toISOString(),
+  });
+  db.reportLogs = db.reportLogs.slice(0, 80);
+  await writeDb(db);
+}
+
+async function saveWeeklyReportPage({ startDate, endDate, style = "standard", text = "" }) {
+  if (!isValidDateKey(startDate) || !isValidDateKey(endDate) || !text.trim()) {
+    throw new Error("invalid_weekly_report");
+  }
+
+  await mkdir(weeklyReportDir, { recursive: true });
+  const fileName = `weekly-report-${startDate}-to-${endDate}.html`;
+  const filePath = join(weeklyReportDir, fileName);
+  await writeFile(filePath, buildWeeklyReportHtml({ startDate, endDate, style, text }));
+
+  const report = {
+    id: randomUUID(),
+    startDate,
+    endDate,
+    style,
+    text,
+    url: `${getAppBaseUrl()}/weekly-reports/${fileName}`,
+    fileName,
+    createdAt: new Date().toISOString(),
+  };
+
+  const db = await readDb();
+  db.weeklyReports = Array.isArray(db.weeklyReports) ? db.weeklyReports : [];
+  db.weeklyReports = db.weeklyReports.filter(
+    (item) => !(item.startDate === startDate && item.endDate === endDate && item.style === style),
+  );
+  db.weeklyReports.unshift(report);
+  db.weeklyReports = db.weeklyReports.slice(0, 24);
+  await writeDb(db);
+  return report;
+}
+
+function getAppBaseUrl() {
+  return (env.APP_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, "");
+}
+
+function buildWeeklyReportHtml({ startDate, endDate, style, text }) {
+  const blocks = text.split(/\r?\n/).map((line) => line.trimEnd());
+  const bodyHtml = blocks.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return '<div class="spacer"></div>';
+    if (/^【.+】$/.test(trimmed)) return `<h2>${escapeHtml(trimmed.replace(/[【】]/g, ""))}</h2>`;
+    if (trimmed.startsWith("・")) return `<p class="item">${escapeHtml(trimmed)}</p>`;
+    if (/^\d+\./.test(trimmed)) return `<p class="item numbered">${escapeHtml(trimmed)}</p>`;
+    return `<p>${escapeHtml(trimmed)}</p>`;
+  }).join("\n");
+
+  return `<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="太田の習慣コーチの週次報告です。">
+    <title>太田の習慣コーチ 週次報告 ${escapeHtml(startDate)}〜${escapeHtml(endDate)}</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #eef1f4;
+        color: #203129;
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+        font-size: 18px;
+        line-height: 1.8;
+      }
+      main {
+        max-width: 920px;
+        margin: 24px auto;
+        padding: 0 22px 34px;
+        border: 1px solid #d8dee6;
+        border-radius: 8px;
+        background: #fffef9;
+        box-shadow: 0 16px 42px rgba(27, 36, 48, 0.12);
+      }
+      header {
+        margin: 0 -22px 22px;
+        padding: 28px 22px;
+        border-radius: 8px 8px 0 0;
+        background: #17476d;
+        color: #fff;
+        text-align: center;
+      }
+      header p { margin: 0 0 6px; color: rgba(255,255,255,.82); font-weight: 700; }
+      h1 { margin: 0; font-size: 30px; line-height: 1.35; }
+      h2 {
+        margin: 24px 0 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #d7dfd9;
+        color: #17476d;
+        font-size: 22px;
+      }
+      p {
+        margin: 0 0 8px;
+        font-weight: 650;
+      }
+      .item {
+        padding-left: 10px;
+      }
+      .numbered {
+        color: #245f8f;
+      }
+      .spacer {
+        height: 10px;
+      }
+      footer {
+        margin-top: 26px;
+        padding-top: 14px;
+        border-top: 1px solid #d7dfd9;
+        color: #59675f;
+        font-size: 15px;
+        font-weight: 650;
+        text-align: center;
+      }
+      @media (max-width: 720px) {
+        body { background: #fffef9; font-size: 16px; }
+        main { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+        header { border-radius: 0; }
+        h1 { font-size: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p>学習・制作報告 / ${escapeHtml(styleLabel(style))}</p>
+        <h1>太田の習慣コーチ 週次報告</h1>
+      </header>
+      ${bodyHtml}
+      <footer>作成日：${escapeHtml(formatJapaneseDate(formatDateKey(new Date())))} / 期間：${escapeHtml(formatJapaneseDate(startDate))}〜${escapeHtml(formatJapaneseDate(endDate))}</footer>
+    </main>
+  </body>
+</html>`;
 }
 
 async function sendLineDailyReportToStudent(student, text) {
@@ -920,6 +1107,11 @@ function verifyLineSignature(rawBody, signature) {
 }
 
 async function serveStatic(response, pathname) {
+  if (pathname.startsWith("/weekly-reports/")) {
+    await serveWeeklyReport(response, pathname);
+    return;
+  }
+
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const safePath = normalize(requestedPath).replace(/^[/\\]+/, "").replace(/^(\.\.[/\\])+/, "");
   const filePath = resolve(rootDir, safePath);
@@ -945,8 +1137,35 @@ async function serveStatic(response, pathname) {
   }
 }
 
+async function serveWeeklyReport(response, pathname) {
+  const requestedPath = pathname.replace(/^\/weekly-reports\//, "");
+  const safePath = normalize(requestedPath).replace(/^[/\\]+/, "").replace(/^(\.\.[/\\])+/, "");
+  const filePath = resolve(weeklyReportDir, safePath);
+
+  if (!filePath.startsWith(weeklyReportDir)) {
+    sendText(response, 403, "Forbidden");
+    return;
+  }
+
+  try {
+    const fileStat = await stat(filePath);
+    if (!fileStat.isFile()) {
+      sendText(response, 404, "Not found");
+      return;
+    }
+
+    response.writeHead(200, {
+      "Content-Type": mimeTypes[extname(filePath)] || "application/octet-stream",
+    });
+    createReadStream(filePath).pipe(response);
+  } catch {
+    sendText(response, 404, "Not found");
+  }
+}
+
 async function ensureDb() {
   await mkdir(dataDir, { recursive: true });
+  await mkdir(weeklyReportDir, { recursive: true });
   try {
     await stat(dbPath);
     await hydrateDbFromEnv();
@@ -970,6 +1189,8 @@ async function ensureDb() {
       },
       coachLinks: [{ studentUserId: "student", coachUserId: "coach" }],
       dailyRecords: [],
+      weeklyReports: [],
+      reportLogs: [],
     });
   }
 }
@@ -977,6 +1198,15 @@ async function ensureDb() {
 async function hydrateDbFromEnv() {
   const db = await readDb();
   let changed = false;
+
+  if (!Array.isArray(db.weeklyReports)) {
+    db.weeklyReports = [];
+    changed = true;
+  }
+  if (!Array.isArray(db.reportLogs)) {
+    db.reportLogs = [];
+    changed = true;
+  }
 
   if (env.STUDENT_LINK_CODE && db.users.student.linkCode !== env.STUDENT_LINK_CODE) {
     db.users.student.linkCode = env.STUDENT_LINK_CODE;
@@ -1057,6 +1287,23 @@ function statusLabel(status) {
     partial: "少しだけ",
     missed: "未達",
   }[status] || status;
+}
+
+function styleLabel(style) {
+  return {
+    short: "短め",
+    standard: "標準",
+    detailed: "詳しめ",
+  }[style] || "標準";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function moodLabel(mood) {

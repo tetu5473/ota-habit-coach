@@ -181,6 +181,8 @@ let focusTimerRemainingSeconds = focusTimerDurationSeconds;
 let focusTimerStartedAt = null;
 let latestLineHealth = null;
 let latestLinkStatus = null;
+let latestWeeklyReports = [];
+let latestReportLogs = [];
 let editingRecordDate = null;
 let recordEditReturnFocus = null;
 const continuousVoiceTargets = new Set(["note", "habitTitle", "habitMinimum"]);
@@ -263,11 +265,18 @@ const elements = {
   weeklyReportStyle: document.querySelector("#weeklyReportStyle"),
   buildWeeklyReportButton: document.querySelector("#buildWeeklyReportButton"),
   copyWeeklyReportButton: document.querySelector("#copyWeeklyReportButton"),
+  saveWeeklyReportPageButton: document.querySelector("#saveWeeklyReportPageButton"),
   weeklyReportPreview: document.querySelector("#weeklyReportPreview"),
   weeklyReportStatus: document.querySelector("#weeklyReportStatus"),
+  weeklyReportHistory: document.querySelector("#weeklyReportHistory"),
   weeklyScoreGrid: document.querySelector("#weeklyScoreGrid"),
+  missingRecordPanel: document.querySelector("#missingRecordPanel"),
   weeklyEditDate: document.querySelector("#weeklyEditDate"),
   openWeeklyEditButton: document.querySelector("#openWeeklyEditButton"),
+  latestWeeklyReportUrl: document.querySelector("#latestWeeklyReportUrl"),
+  latestReportLog: document.querySelector("#latestReportLog"),
+  submissionTestStatus: document.querySelector("#submissionTestStatus"),
+  reportLogList: document.querySelector("#reportLogList"),
   lineWebhookStatus: document.querySelector("#lineWebhookStatus"),
   calendarMonthLabel: document.querySelector("#calendarMonthLabel"),
   calendarGrid: document.querySelector("#calendarGrid"),
@@ -332,6 +341,7 @@ function init() {
   elements.sendDailyReportButton.addEventListener("click", sendDailyReportAgain);
   elements.buildWeeklyReportButton?.addEventListener("click", buildAndShowWeeklyReport);
   elements.copyWeeklyReportButton?.addEventListener("click", copyWeeklyReport);
+  elements.saveWeeklyReportPageButton?.addEventListener("click", saveWeeklyReportPage);
   elements.openWeeklyEditButton?.addEventListener("click", openWeeklyEditDate);
   elements.weeklyReportStyle?.addEventListener("change", () => {
     if (!elements.weeklyReportPreview?.hidden) buildAndShowWeeklyReport();
@@ -357,6 +367,8 @@ function init() {
   updateScrollTopButton();
   loadLineLinkStatus();
   loadServerRecords();
+  loadWeeklyReports();
+  loadReportLogs();
 }
 
 function setupVoiceInput() {
@@ -1720,6 +1732,7 @@ async function syncRecordToServer(record) {
     elements.lineReportStatus.textContent = statusText;
     setRecordSaveStatus(`記録を保存しました。${statusText}`, getRecordSaveStatusType(result.report));
     renderReportReadiness();
+    loadReportLogs();
   } catch {
     const statusText = "記録を保存しました。LINE連携APIには接続できませんでした。";
     elements.lineReportStatus.textContent = "LINE連携APIに接続できませんでした。記録はブラウザ内に保存されています。";
@@ -1747,6 +1760,7 @@ async function syncRecordsToServer(records, options = {}) {
     elements.lineReportStatus.textContent = statusText;
     setRecordSaveStatus(`記録を保存しました。${statusText}`, getRecordSaveStatusType(result.report));
     renderReportReadiness();
+    loadReportLogs();
   } catch {
     const statusText = "LINE連携APIに接続できませんでした。記録はブラウザ内に保存されています。";
     elements.lineReportStatus.textContent = statusText;
@@ -1871,6 +1885,7 @@ async function sendDailyReportAgain() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
     elements.lineReportStatus.textContent = buildLineReportStatus(result.report);
+    loadReportLogs();
   } catch {
     elements.lineReportStatus.textContent = "日次レポート再送APIに接続できませんでした。";
   }
@@ -1883,6 +1898,7 @@ function buildAndShowWeeklyReport() {
   elements.weeklyReportPreview.dataset.reportText = report;
   elements.weeklyReportPreview.hidden = false;
   if (elements.copyWeeklyReportButton) elements.copyWeeklyReportButton.disabled = false;
+  if (elements.saveWeeklyReportPageButton) elements.saveWeeklyReportPageButton.disabled = false;
   if (elements.weeklyReportStatus) {
     elements.weeklyReportStatus.textContent = `今週の報告文を作成しました。形式は${reportStyleLabels[getWeeklyReportStyle()]}です。`;
   }
@@ -1919,6 +1935,79 @@ function openWeeklyEditDate() {
   }
 }
 
+async function saveWeeklyReportPage() {
+  const text = elements.weeklyReportPreview?.dataset.reportText || "";
+  if (!text) {
+    if (elements.weeklyReportStatus) elements.weeklyReportStatus.textContent = "先に週次レポートを作成してください。";
+    return;
+  }
+
+  const summary = buildWeeklySummary();
+  elements.saveWeeklyReportPageButton.disabled = true;
+  if (elements.weeklyReportStatus) elements.weeklyReportStatus.textContent = "共有URLを作成しています。";
+
+  try {
+    const response = await fetch(`${API_BASE}/api/reports/weekly-pages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        startDate: summary.startKey,
+        endDate: summary.endKey,
+        style: getWeeklyReportStyle(),
+        text,
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const report = result.report;
+    if (!report?.url) throw new Error("missing_weekly_url");
+    if (elements.weeklyReportStatus) {
+      elements.weeklyReportStatus.innerHTML = `共有URLを作成しました。<a href="${escapeHtml(report.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(report.url)}</a>`;
+    }
+    latestWeeklyReports = [report, ...latestWeeklyReports.filter((item) => item.id !== report.id)];
+    renderWeeklyReportHistory(latestWeeklyReports);
+    renderSubmissionSummary();
+  } catch {
+    if (elements.weeklyReportStatus) {
+      elements.weeklyReportStatus.textContent = "共有URLを作成できませんでした。サーバーやRenderの状態を確認してください。文面コピーはできます。";
+    }
+  } finally {
+    elements.saveWeeklyReportPageButton.disabled = false;
+  }
+}
+
+async function loadWeeklyReports() {
+  try {
+    const response = await fetch(`${API_BASE}/api/reports/weekly`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const reports = Array.isArray(result.reports) ? result.reports : [];
+    latestWeeklyReports = reports;
+    renderWeeklyReportHistory(reports);
+    renderSubmissionSummary();
+  } catch {
+    latestWeeklyReports = [];
+    renderWeeklyReportHistory([]);
+  }
+}
+
+async function loadReportLogs() {
+  try {
+    const response = await fetch(`${API_BASE}/api/reports/logs`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    const logs = Array.isArray(result.logs) ? result.logs : [];
+    latestReportLogs = logs;
+    renderReportLogs(logs);
+    renderSubmissionSummary();
+  } catch {
+    latestReportLogs = [];
+    renderReportLogs([]);
+  }
+}
+
 async function sendSelfTestReportAgain() {
   const recordDateKey = getRecordDateKey();
   const savedRecords = state.checkIns.filter((checkIn) => checkIn.date === recordDateKey);
@@ -1947,6 +2036,7 @@ async function sendSelfTestReportAgain() {
     const statusText = buildLineReportStatus(result.report);
     elements.lineReportStatus.textContent = statusText;
     setRecordSaveStatus(statusText, getRecordSaveStatusType(result.report));
+    loadReportLogs();
   } catch {
     const message = "自分だけのLINEテスト送信APIに接続できませんでした。";
     elements.lineReportStatus.textContent = message;
@@ -2625,6 +2715,8 @@ function renderWeeklyReview() {
   const review = buildWeeklyReview();
   elements.weeklyReview.innerHTML = "";
   renderWeeklyScoreGrid();
+  renderMissingRecords();
+  renderSubmissionSummary();
 
   review.forEach((item) => {
     const card = document.createElement("article");
@@ -2656,6 +2748,119 @@ function renderWeeklyScoreGrid() {
     `;
     elements.weeklyScoreGrid.append(card);
   });
+}
+
+function renderMissingRecords() {
+  if (!elements.missingRecordPanel) return;
+  const missingDates = getRecentMissingRecordDates(7);
+  elements.missingRecordPanel.innerHTML = "";
+
+  if (!missingDates.length) {
+    elements.missingRecordPanel.innerHTML = "<strong>記録漏れ</strong><p>直近7日分は記録が入っています。</p>";
+    elements.missingRecordPanel.dataset.status = "complete";
+    return;
+  }
+
+  elements.missingRecordPanel.dataset.status = "attention";
+  elements.missingRecordPanel.innerHTML = `
+    <strong>未記録の日があります</strong>
+    <p>${missingDates.map((date) => formatShortDate(date)).join("、")} が未記録です。必要なら日付を開いて入力できます。</p>
+    <div class="missing-date-actions">
+      ${missingDates.map((date) => `<button class="ghost-button compact-button" type="button" data-missing-date="${escapeHtml(date)}">${escapeHtml(formatShortDate(date))}</button>`).join("")}
+    </div>
+  `;
+  elements.missingRecordPanel.querySelectorAll("[data-missing-date]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectRecordDate(button.dataset.missingDate);
+      document.querySelector("#dailyRecordSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+function getRecentMissingRecordDates(dayCount) {
+  return Array.from({ length: dayCount }, (_, index) => formatDateKey(addDays(today, -index)))
+    .reverse()
+    .filter((date) => !state.checkIns.some((checkIn) => checkIn.date === date));
+}
+
+function renderWeeklyReportHistory(reports) {
+  if (!elements.weeklyReportHistory) return;
+  elements.weeklyReportHistory.innerHTML = "";
+  if (!reports.length) {
+    elements.weeklyReportHistory.append(createEmptyMessage("週次レポートの共有URL履歴はまだありません。"));
+    return;
+  }
+
+  reports.slice(0, 5).forEach((report) => {
+    const item = document.createElement("article");
+    item.className = "weekly-history-item";
+    item.innerHTML = `
+      <div>
+        <strong>${escapeHtml(formatShortDate(report.startDate))}〜${escapeHtml(formatShortDate(report.endDate))}</strong>
+        <p>${escapeHtml(reportStyleLabels[report.style] || "標準")} / ${escapeHtml(formatCreatedAt(report.createdAt))}</p>
+      </div>
+      <a class="ghost-button compact-button" href="${escapeHtml(report.url)}" target="_blank" rel="noopener noreferrer">開く</a>
+    `;
+    elements.weeklyReportHistory.append(item);
+  });
+}
+
+function renderReportLogs(logs) {
+  if (!elements.reportLogList) return;
+  elements.reportLogList.innerHTML = "";
+  if (!logs.length) {
+    elements.reportLogList.append(createEmptyMessage("まだLINE送信ログはありません。"));
+    return;
+  }
+
+  logs.slice(0, 6).forEach((log) => {
+    const item = document.createElement("article");
+    item.className = "report-log-item";
+    item.dataset.status = log.sent ? "success" : "pending";
+    item.innerHTML = `
+      <strong>${escapeHtml(formatShortDate(log.date))} / ${escapeHtml(formatReportTarget(log.target))}</strong>
+      <p>${escapeHtml(log.sent ? "送信済み" : "未送信・保留")} / ${escapeHtml(reportStyleLabels[log.style] || "標準")} / ${escapeHtml(formatCreatedAt(log.createdAt))}</p>
+    `;
+    elements.reportLogList.append(item);
+  });
+}
+
+function renderSubmissionSummary() {
+  const latestReport = latestWeeklyReports[0];
+  const latestLog = latestReportLogs[0];
+  if (elements.latestWeeklyReportUrl) {
+    elements.latestWeeklyReportUrl.innerHTML = latestReport?.url
+      ? `<a href="${escapeHtml(latestReport.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(latestReport.url)}</a>`
+      : "まだ共有URLは作成されていません。";
+  }
+  if (elements.latestReportLog) {
+    elements.latestReportLog.textContent = latestLog
+      ? `${formatShortDate(latestLog.date)} / ${formatReportTarget(latestLog.target)} / ${latestLog.sent ? "送信済み" : "保留"}`
+      : "まだ送信ログはありません。";
+  }
+  if (elements.submissionTestStatus) {
+    const stored = loadTestChecklistState();
+    const checkedCount = testChecklistItems.filter((item) => stored[item.id]).length;
+    elements.submissionTestStatus.textContent = `確認済み ${checkedCount} / ${testChecklistItems.length} 件`;
+  }
+}
+
+function formatReportTarget(target) {
+  if (target === "student") return "自分だけ";
+  if (target === "coach_and_student") return "講師と自分";
+  return "通常送信";
+}
+
+function formatCreatedAt(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function renderCalendar() {

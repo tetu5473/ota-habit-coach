@@ -1347,6 +1347,80 @@ fieldset {
   max-height: 360px;
 }
 
+.missing-record-panel,
+.submission-grid article,
+.weekly-history-item,
+.report-log-item {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.missing-record-panel {
+  display: grid;
+  gap: 6px;
+}
+
+.missing-record-panel[data-status="attention"] {
+  border-color: rgba(213, 138, 36, 0.28);
+  background: #fffaf0;
+}
+
+.missing-record-panel strong,
+.submission-grid strong,
+.weekly-history-item strong,
+.report-log-item strong {
+  color: var(--green-dark);
+}
+
+.missing-record-panel p,
+.submission-grid p,
+.weekly-history-item p,
+.report-log-item p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.missing-date-actions,
+.weekly-history-list,
+.report-log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.missing-date-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.weekly-history-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.submission-panel {
+  padding: 0;
+}
+
+.submission-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.submission-grid a,
+.weekly-history-item a {
+  overflow-wrap: anywhere;
+}
+
+.report-log-item[data-status="success"] {
+  border-color: rgba(54, 166, 106, 0.24);
+  background: #fbfffb;
+}
+
 .line-panel,
 .weekly-panel,
 .history-panel {
@@ -2290,7 +2364,8 @@ fieldset {
   .workflow-grid,
   .insight-grid,
   .line-link-grid,
-  .line-send-mode-grid {
+  .line-send-mode-grid,
+  .submission-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2342,6 +2417,14 @@ fieldset {
   .weekly-edit-helper .ghost-button,
   .weekly-edit-helper input {
     width: 100%;
+  }
+
+  .missing-date-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weekly-history-item {
+    grid-template-columns: 1fr;
   }
 
   .test-check-group-items,

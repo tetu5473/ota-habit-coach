@@ -37,6 +37,7 @@
         <button type="button" data-scroll-target="#dailyRecordSection">今日の記録</button>
         <button type="button" data-scroll-target="#lineSection">LINE送信</button>
         <button type="button" data-scroll-target="#weeklySection">週間</button>
+        <button type="button" data-scroll-target="#submissionSection">提出</button>
         <button type="button" data-scroll-target="#historySection">履歴</button>
         <button type="button" data-scroll-target="#testSection">テスト</button>
       </nav>
@@ -340,7 +341,9 @@
                 </label>
                 <button class="primary-button compact-button" id="buildWeeklyReportButton" type="button">週次レポート作成</button>
                 <button class="ghost-button compact-button" id="copyWeeklyReportButton" type="button" disabled>コピー</button>
+                <button class="ghost-button compact-button" id="saveWeeklyReportPageButton" type="button" disabled>共有URLを作成</button>
               </div>
+              <div class="missing-record-panel" id="missingRecordPanel"></div>
               <div class="weekly-score-grid" id="weeklyScoreGrid"></div>
               <div class="review-grid" id="weeklyReview"></div>
               <div class="weekly-edit-helper">
@@ -350,6 +353,37 @@
               </div>
               <p class="helper-text" id="weeklyReportStatus">週次レポートを作成すると、ここにプレビューが表示されます。</p>
               <div class="line-report-preview weekly-report-preview" id="weeklyReportPreview" hidden></div>
+              <div class="weekly-history-list" id="weeklyReportHistory"></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel submission-panel" id="submissionSection">
+          <details class="compact-details">
+            <summary>
+              <span>
+                <span class="eyebrow">Submission</span>
+                <strong>講師提出まとめ</strong>
+              </span>
+              <span class="summary-hint">開く</span>
+            </summary>
+            <div class="compact-details-body">
+              <p class="helper-text">Zoomや講師報告で見せる内容をまとめて確認できます。</p>
+              <div class="submission-grid">
+                <article>
+                  <strong>週次報告URL</strong>
+                  <p id="latestWeeklyReportUrl">まだ共有URLは作成されていません。</p>
+                </article>
+                <article>
+                  <strong>LINE送信ログ</strong>
+                  <p id="latestReportLog">送信ログを読み込み中です。</p>
+                </article>
+                <article>
+                  <strong>テスト確認</strong>
+                  <p id="submissionTestStatus">テスト確認状況を読み込み中です。</p>
+                </article>
+              </div>
+              <div class="report-log-list" id="reportLogList"></div>
             </div>
           </details>
         </section>
