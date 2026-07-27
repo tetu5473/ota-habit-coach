@@ -1866,6 +1866,9 @@ function getWeeklyReportStyle() {
 async function sendDailyReportAgain(options = {}) {
   const normalizedOptions = options instanceof Event ? {} : options;
   const recordDateKey = normalizedOptions.date || getRecordDateKey();
+  if (normalizedOptions.target !== "student" && !confirmCoachReportSend(recordDateKey)) {
+    return;
+  }
   const savedRecords = state.checkIns.filter((checkIn) => checkIn.date === recordDateKey);
   if (!savedRecords.length) {
     const message = `${formatShortDate(recordDateKey)}の保存済み記録がまだありません。先に「保存してLINE送信」を押してください。`;
@@ -2469,6 +2472,12 @@ async function handleRecordEditSubmit(event) {
       button.disabled = false;
     });
   }
+}
+
+function confirmCoachReportSend(dateKey) {
+  return window.confirm(
+    `${formatShortDate(dateKey)}のレポートを講師と自分へ送信します。\n自分だけでテストする場合は「キャンセル」を押して、「自分だけに再送」を使ってください。`,
+  );
 }
 
 function applyEditedRecordsLocally(fromDate, toDate, editedRecords) {

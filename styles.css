@@ -1688,6 +1688,10 @@ fieldset {
   color: var(--green);
 }
 
+.record-edit-actions .coach-send-button {
+  background: #1f7d4d;
+}
+
 .line-link-card {
   padding: 10px;
   border: 1px solid var(--line);

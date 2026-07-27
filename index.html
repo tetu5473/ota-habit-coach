@@ -310,13 +310,13 @@
                 <p id="recordEditSummary"></p>
               </div>
               <div class="record-edit-list" id="recordEditList"></div>
-              <p class="record-edit-send-note">変更の保存ではLINEを送信しません。必要な場合は保存後にレポートを再送できます。</p>
+              <p class="record-edit-send-note">テスト中は「保存して自分だけに再送」を使います。講師へ送る操作は確認してから送信します。</p>
               <p class="record-edit-status" id="recordEditStatus" role="status"></p>
               <div class="record-edit-actions">
                 <button class="ghost-button" type="button" id="cancelRecordEditButton">キャンセル</button>
                 <button class="primary-button secondary-save-button" type="submit" id="recordEditSaveButton">変更だけ保存</button>
                 <button class="ghost-button" type="submit" id="recordEditSelfTestButton" data-after-save="self-test">保存して自分だけに再送</button>
-                <button class="primary-button" type="submit" id="recordEditSendButton" data-after-save="resend">保存して講師と自分へ再送</button>
+                <button class="primary-button coach-send-button" type="submit" id="recordEditSendButton" data-after-save="resend">本番: 講師と自分へ再送</button>
               </div>
             </form>
           </section>
