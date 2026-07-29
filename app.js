@@ -185,6 +185,7 @@ let latestWeeklyReports = [];
 let latestReportLogs = [];
 let editingRecordDate = null;
 let recordEditReturnFocus = null;
+let recordEditOriginalSnapshot = [];
 const continuousVoiceTargets = new Set(["note", "habitTitle", "habitMinimum"]);
 const voiceRestartDelayMs = 600;
 const maxVoiceRestarts = Number.POSITIVE_INFINITY;
@@ -254,7 +255,9 @@ const elements = {
   recordEditForm: document.querySelector("#recordEditForm"),
   recordEditDate: document.querySelector("#recordEditDate"),
   recordEditSummary: document.querySelector("#recordEditSummary"),
+  recordEditDateWarning: document.querySelector("#recordEditDateWarning"),
   recordEditList: document.querySelector("#recordEditList"),
+  recordEditDiffPreview: document.querySelector("#recordEditDiffPreview"),
   recordEditStatus: document.querySelector("#recordEditStatus"),
   closeRecordEditButton: document.querySelector("#closeRecordEditButton"),
   cancelRecordEditButton: document.querySelector("#cancelRecordEditButton"),
@@ -263,6 +266,7 @@ const elements = {
   recordEditSendButton: document.querySelector("#recordEditSendButton"),
   scrollTopButton: document.querySelector("#scrollTopButton"),
   reportReadinessStatus: document.querySelector("#reportReadinessStatus"),
+  reportCheckList: document.querySelector("#reportCheckList"),
   recordSaveStatus: document.querySelector("#recordSaveStatus"),
   dailyReportStyle: document.querySelector("#dailyReportStyle"),
   weeklyReportStyle: document.querySelector("#weeklyReportStyle"),
@@ -300,6 +304,10 @@ function init() {
   elements.multiHabitRecords.addEventListener("input", handleMultiHabitRecordsInput);
   elements.multiHabitRecords.addEventListener("click", handleMultiHabitRecordsClick);
   elements.multiHabitRecords.addEventListener("submit", handleMultiHabitRecordsSubmit);
+  elements.note?.addEventListener("input", () => {
+    const recordDateKey = getRecordDateKey();
+    renderReportCheckList(recordDateKey, state.checkIns.filter((checkIn) => checkIn.date === recordDateKey));
+  });
   elements.habitSelect.addEventListener("change", updatePlanInput);
   elements.learningSessionList.addEventListener("input", syncLearningMinutesFromTimeRange);
   elements.learningSessionList.addEventListener("click", handleLearningSessionListClick);
@@ -331,7 +339,12 @@ function init() {
   elements.recordEditModal?.addEventListener("click", (event) => {
     if (event.target.matches("[data-record-edit-close]")) closeRecordEditModal();
   });
+  elements.recordEditDate?.addEventListener("change", () => {
+    renderRecordEditDateWarning();
+    renderRecordEditDiffPreview();
+  });
   elements.recordEditList?.addEventListener("input", handleRecordEditListInput);
+  elements.recordEditList?.addEventListener("change", renderRecordEditDiffPreview);
   elements.recordEditList?.addEventListener("click", handleRecordEditListClick);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
@@ -1214,11 +1227,13 @@ function handleMultiHabitRecordsInput(event) {
   if (!card) return;
   if (event.target.matches(".multi-note")) {
     updateNoteSuggestions(card);
+    renderReportReadiness();
     return;
   }
   if (card.dataset.category !== "learning") return;
   if (event.target.matches(".learning-start-time, .learning-end-time")) {
     updateMultiLearningDuration(card);
+    renderReportReadiness();
   }
 }
 
@@ -2265,15 +2280,18 @@ function openRecordEditModal(date, focusDate = false) {
   }
 
   editingRecordDate = date;
+  recordEditOriginalSnapshot = records.map(createRecordEditSnapshot);
   recordEditReturnFocus = document.activeElement;
   elements.recordEditDate.value = date;
   elements.recordEditSummary.textContent = `${formatShortDate(date)}の保存済み記録 ${records.length}件`;
+  renderRecordEditDateWarning();
   elements.recordEditStatus.textContent = "";
   elements.recordEditStatus.dataset.status = "neutral";
   elements.recordEditList.innerHTML = records.map(buildRecordEditItemHtml).join("");
   elements.recordEditList.querySelectorAll(".record-edit-item[data-category='learning']").forEach((item) => {
     updateRecordEditLearningItem(item);
   });
+  renderRecordEditDiffPreview();
   elements.recordEditModal.hidden = false;
 
   requestAnimationFrame(() => {
@@ -2329,9 +2347,109 @@ function buildRecordEditItemHtml(record) {
   `;
 }
 
+function createRecordEditSnapshot(record) {
+  const habit = findHabit(record.habitId);
+  const learningSessions = getLearningSessionsFromCheckIn(record);
+  return {
+    habitId: record.habitId,
+    habitTitle: habit.title,
+    date: record.date,
+    status: record.status || "done",
+    note: record.note || "",
+    plannedMinimumAction: getPlan(record.date, record.habitId)?.plannedMinimumAction
+      || record.plannedMinimumAction
+      || habit.minimumAction
+      || "",
+    learningSessions,
+    learningMinutes: learningSessions.reduce(
+      (total, session) => total + Number(calculateMinutesBetween(session.startTime, session.endTime) || 0),
+      0,
+    ),
+  };
+}
+
+function collectRecordEditDrafts() {
+  if (!elements.recordEditList) return [];
+  return Array.from(elements.recordEditList.querySelectorAll(".record-edit-item")).map((item) => {
+    const habitId = item.dataset.habitId;
+    const habit = findHabit(habitId);
+    const learningSessions = habit.category === "learning" ? collectMultiLearningSessions(item) : [];
+    return {
+      habitId,
+      habitTitle: habit.title,
+      date: elements.recordEditDate?.value || editingRecordDate,
+      status: item.querySelector(`input[name="record-edit-status-${CSS.escape(habitId)}"]:checked`)?.value || "done",
+      note: item.querySelector(".record-edit-note")?.value.trim() || "",
+      plannedMinimumAction: item.querySelector(".record-edit-minimum")?.value.trim() || "",
+      learningSessions,
+      learningMinutes: learningSessions.reduce(
+        (total, session) => total + Number(calculateMinutesBetween(session.startTime, session.endTime) || 0),
+        0,
+      ),
+    };
+  });
+}
+
+function renderRecordEditDateWarning() {
+  if (!elements.recordEditDateWarning || !editingRecordDate) return;
+  const toDate = elements.recordEditDate?.value || editingRecordDate;
+  const sameDate = toDate === editingRecordDate;
+  elements.recordEditDateWarning.textContent = sameDate
+    ? `${formatShortDate(editingRecordDate)}の報告を編集しています。日付を変えると保存日も変わります。`
+    : `報告日を ${formatShortDate(editingRecordDate)} から ${formatShortDate(toDate)} に変更します。日付間違いの修正として保存できます。`;
+  elements.recordEditDateWarning.dataset.status = sameDate ? "neutral" : "changed";
+}
+
+function renderRecordEditDiffPreview() {
+  if (!elements.recordEditDiffPreview || !editingRecordDate) return;
+  const diffs = buildRecordEditDiffs();
+  if (!diffs.length) {
+    elements.recordEditDiffPreview.hidden = true;
+    elements.recordEditDiffPreview.innerHTML = "";
+    return;
+  }
+  elements.recordEditDiffPreview.hidden = false;
+  elements.recordEditDiffPreview.innerHTML = `
+    <strong>保存前の変更点</strong>
+    <ul>
+      ${diffs.map((diff) => `<li>${escapeHtml(diff)}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function buildRecordEditDiffs() {
+  const drafts = collectRecordEditDrafts();
+  const diffs = [];
+  const toDate = elements.recordEditDate?.value || editingRecordDate;
+  if (toDate && toDate !== editingRecordDate) {
+    diffs.push(`報告日: ${formatShortDate(editingRecordDate)} → ${formatShortDate(toDate)}`);
+  }
+
+  drafts.forEach((draft) => {
+    const original = recordEditOriginalSnapshot.find((record) => record.habitId === draft.habitId);
+    if (!original) return;
+    if (draft.status !== original.status) {
+      diffs.push(`${draft.habitTitle}: 結果 ${statusLabels[original.status]} → ${statusLabels[draft.status]}`);
+    }
+    if (draft.plannedMinimumAction !== original.plannedMinimumAction) {
+      diffs.push(`${draft.habitTitle}: 今日の目安を変更`);
+    }
+    if (draft.note !== original.note) {
+      diffs.push(`${draft.habitTitle}: メモを変更`);
+    }
+    if (draft.learningMinutes !== original.learningMinutes) {
+      diffs.push(`${draft.habitTitle}: 学習時間 ${formatDuration(original.learningMinutes)} → ${formatDuration(draft.learningMinutes)}`);
+    }
+  });
+
+  return diffs;
+}
+
 function handleRecordEditListInput(event) {
-  if (!event.target.matches(".learning-start-time, .learning-end-time")) return;
-  updateRecordEditLearningItem(event.target.closest(".record-edit-item"));
+  if (event.target.matches(".learning-start-time, .learning-end-time")) {
+    updateRecordEditLearningItem(event.target.closest(".record-edit-item"));
+  }
+  renderRecordEditDiffPreview();
 }
 
 function handleRecordEditListClick(event) {
@@ -2341,6 +2459,7 @@ function handleRecordEditListClick(event) {
     const list = item.querySelector(".learning-session-list");
     list.insertAdjacentHTML("beforeend", buildMultiLearningSessionRow({}, list.children.length + 1));
     updateRecordEditLearningItem(item);
+    renderRecordEditDiffPreview();
     return;
   }
 
@@ -2353,6 +2472,7 @@ function handleRecordEditListClick(event) {
     list.insertAdjacentHTML("beforeend", buildMultiLearningSessionRow());
   }
   updateRecordEditLearningItem(item);
+  renderRecordEditDiffPreview();
 }
 
 function updateRecordEditLearningItem(item) {
@@ -2536,6 +2656,11 @@ function closeRecordEditModal() {
   if (!elements.recordEditModal || elements.recordEditModal.hidden) return;
   elements.recordEditModal.hidden = true;
   editingRecordDate = null;
+  recordEditOriginalSnapshot = [];
+  if (elements.recordEditDiffPreview) {
+    elements.recordEditDiffPreview.hidden = true;
+    elements.recordEditDiffPreview.innerHTML = "";
+  }
   if (recordEditReturnFocus && typeof recordEditReturnFocus.focus === "function") {
     recordEditReturnFocus.focus();
   }
@@ -2632,6 +2757,50 @@ function renderReportReadiness() {
   }
   elements.reportReadinessStatus.textContent = message;
   elements.reportReadinessStatus.dataset.status = status;
+  renderReportCheckList(recordDateKey, savedRecords);
+}
+
+function renderReportCheckList(recordDateKey, savedRecords) {
+  if (!elements.reportCheckList) return;
+  const isToday = recordDateKey === todayKey;
+  const noteText = Array.from(document.querySelectorAll(".multi-note"))
+    .map((textarea) => textarea.value.trim())
+    .filter(Boolean)
+    .join("\n");
+  const items = [
+    {
+      status: isToday ? "ok" : "attention",
+      label: `報告日: ${formatShortDate(recordDateKey)}`,
+      detail: isToday ? "今日の日付です。" : "今日以外の日付を選択中です。",
+    },
+    {
+      status: savedRecords.length ? "ok" : "attention",
+      label: savedRecords.length ? `保存済み記録: ${savedRecords.length}件` : "保存前の入力内容",
+      detail: savedRecords.length ? "再送や編集の対象があります。" : "保存前でも送信予定文面を確認できます。",
+    },
+    {
+      status: latestLinkStatus?.studentLinked ? "ok" : "attention",
+      label: "自分だけテスト",
+      detail: latestLinkStatus?.studentLinked ? "自分のLINEで確認できます。" : "本人連携が未確認です。",
+    },
+    {
+      status: latestLinkStatus?.coachLinked ? "ok" : "attention",
+      label: "本番送信",
+      detail: latestLinkStatus?.coachLinked ? "講師と自分へ送信できます。" : "講師連携が未確認です。",
+    },
+    {
+      status: noteText.length ? "ok" : "neutral",
+      label: "メモ",
+      detail: noteText.length ? "入力中のメモを報告文に反映します。" : "必要なら一言メモを入れてから送信します。",
+    },
+  ];
+
+  elements.reportCheckList.innerHTML = items.map((item) => `
+    <li data-status="${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.label)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </li>
+  `).join("");
 }
 
 function renderSelectedRecordDate() {
@@ -2867,15 +3036,33 @@ function renderReportLogs(logs) {
   }
 
   logs.slice(0, 6).forEach((log) => {
+    const targetLabel = formatReportTarget(log.target);
+    const statusLabel = log.sent ? "送信済み" : "未送信・保留";
+    const reason = log.reason || log.line?.reason || "";
     const item = document.createElement("article");
     item.className = "report-log-item";
     item.dataset.status = log.sent ? "success" : "pending";
+    item.dataset.target = log.target || "normal";
     item.innerHTML = `
-      <strong>${escapeHtml(formatShortDate(log.date))} / ${escapeHtml(formatReportTarget(log.target))}</strong>
-      <p>${escapeHtml(log.sent ? "送信済み" : "未送信・保留")} / ${escapeHtml(reportStyleLabels[log.style] || "標準")} / ${escapeHtml(formatCreatedAt(log.createdAt))}</p>
+      <div class="report-log-header">
+        <strong>${escapeHtml(formatShortDate(log.date))}</strong>
+        <span class="report-log-badge">${escapeHtml(targetLabel)}</span>
+      </div>
+      <p>${escapeHtml(statusLabel)} / ${escapeHtml(reportStyleLabels[log.style] || "標準")} / ${escapeHtml(formatCreatedAt(log.createdAt))}</p>
+      ${reason ? `<small>${escapeHtml(formatReportLogReason(reason))}</small>` : ""}
     `;
     elements.reportLogList.append(item);
   });
+}
+
+function formatReportLogReason(reason) {
+  const labels = {
+    student_not_linked: "本人連携が未確認です。",
+    coach_not_linked: "講師連携が未確認です。",
+    line_not_configured: "LINE設定が未完了です。",
+    send_failed: "LINE送信に失敗しました。",
+  };
+  return labels[reason] || String(reason);
 }
 
 function renderSubmissionSummary() {

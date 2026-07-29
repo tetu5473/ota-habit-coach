@@ -194,6 +194,13 @@
                 <button class="primary-button" type="submit">保存してLINE送信</button>
               </div>
               <p class="record-send-note">通常保存は講師と自分へ送信します。テスト送信は講師に送らず、自分のLINEだけで確認できます。</p>
+              <section class="report-check-panel" aria-label="送信前チェック">
+                <div>
+                  <span class="eyebrow">Before send</span>
+                  <strong>送信前チェック</strong>
+                </div>
+                <ul id="reportCheckList"></ul>
+              </section>
               <p class="report-readiness-status" id="reportReadinessStatus" role="status">報告できる状態を確認しています。</p>
               <p class="record-save-status" id="recordSaveStatus" role="status">記録すると、保存状態とLINE送信状態がここに表示されます。</p>
               <section class="coach-panel compact-coach-panel" aria-live="polite">
@@ -309,7 +316,9 @@
                 <input id="recordEditDate" type="date" required>
                 <p id="recordEditSummary"></p>
               </div>
+              <p class="record-edit-date-warning" id="recordEditDateWarning"></p>
               <div class="record-edit-list" id="recordEditList"></div>
+              <div class="record-edit-diff-preview" id="recordEditDiffPreview" hidden></div>
               <p class="record-edit-send-note">テスト中は「保存して自分だけに再送」を使います。講師へ送る操作は確認してから送信します。</p>
               <p class="record-edit-status" id="recordEditStatus" role="status"></p>
               <div class="record-edit-actions">
