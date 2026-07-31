@@ -187,6 +187,7 @@ let latestReportLogs = [];
 let editingRecordDate = null;
 let recordEditReturnFocus = null;
 let recordEditOriginalSnapshot = [];
+const minimumAutoSaveTimers = new Map();
 const continuousVoiceTargets = new Set(["note", "habitTitle", "habitMinimum"]);
 const voiceRestartDelayMs = 600;
 const maxVoiceRestarts = Number.POSITIVE_INFINITY;
@@ -303,6 +304,7 @@ function init() {
   populateHabitSelects();
   elements.dailyForm.addEventListener("submit", handleDailyRecord);
   elements.multiHabitRecords.addEventListener("input", handleMultiHabitRecordsInput);
+  elements.multiHabitRecords.addEventListener("focusout", handleMultiHabitRecordsFocusOut);
   elements.multiHabitRecords.addEventListener("click", handleMultiHabitRecordsClick);
   elements.multiHabitRecords.addEventListener("submit", handleMultiHabitRecordsSubmit);
   elements.note?.addEventListener("input", () => {
@@ -589,6 +591,7 @@ function setVoiceTargetValue(target, baseText, liveText) {
     if (scoped.kind === "habitMinimum") {
       const input = scoped.card.querySelector(".multi-minimum-input");
       input.value = limitToMaxLength(input, cleanVoiceTranscript(liveText));
+      scheduleMultiMinimumAutoSave(scoped.card);
       return;
     }
   }
@@ -728,6 +731,7 @@ function applyVoiceTranscript(target, transcript) {
   if (scoped.card && scoped.kind === "habitMinimum") {
     const input = scoped.card.querySelector(".multi-minimum-input");
     input.value = limitToMaxLength(input, cleanVoiceTranscript(transcript));
+    scheduleMultiMinimumAutoSave(scoped.card, { delay: 150 });
     elements.voiceStatus.textContent = `${getHabitVoiceLabel(scoped.card)}の今日の目安に入力しました。`;
     return;
   }
@@ -1084,10 +1088,10 @@ function renderMultiHabitRecordForms() {
                 </span>
               </label>
               <div class="button-row">
-                <button class="primary-button compact-button" type="submit">保存</button>
-                <button class="ghost-button compact-button multi-minimum-cancel-button" type="button">キャンセル</button>
+                <button class="primary-button compact-button" type="submit">完了</button>
+                <button class="ghost-button compact-button multi-minimum-cancel-button" type="button">閉じる</button>
               </div>
-              <p class="habit-save-note" aria-live="polite"></p>
+              <p class="habit-save-note" aria-live="polite">入力すると自動保存されます。</p>
             </form>
           </div>
           <fieldset class="multi-habit-field">
@@ -1226,6 +1230,10 @@ function handleLearningSessionListClick(event) {
 function handleMultiHabitRecordsInput(event) {
   const card = event.target.closest(".multi-habit-card");
   if (!card) return;
+  if (event.target.matches(".multi-minimum-input")) {
+    scheduleMultiMinimumAutoSave(card);
+    return;
+  }
   if (event.target.matches(".multi-note")) {
     updateNoteSuggestions(card);
     renderReportReadiness();
@@ -1236,6 +1244,11 @@ function handleMultiHabitRecordsInput(event) {
     updateMultiLearningDuration(card);
     renderReportReadiness();
   }
+}
+
+function handleMultiHabitRecordsFocusOut(event) {
+  if (!event.target.matches(".multi-minimum-input")) return;
+  flushMultiMinimumAutoSave(event.target.closest(".multi-habit-card"));
 }
 
 function handleMultiHabitRecordsClick(event) {
@@ -1396,10 +1409,44 @@ function handleMultiHabitRecordsSubmit(event) {
   if (!form) return;
   event.preventDefault();
   const card = form.closest(".multi-habit-card");
-  const habit = findHabit(card.dataset.habitId);
-  const input = form.querySelector(".multi-minimum-input");
-  const plannedMinimumAction = input.value.trim();
-  if (!plannedMinimumAction) return;
+  const saved = saveMultiMinimumPlan(card, { statusText: "今日の目安を保存しました。" });
+  if (!saved) return;
+  showMultiMinimumEditor(card, false);
+}
+
+function scheduleMultiMinimumAutoSave(card, options = {}) {
+  if (!card) return;
+  const habitId = card.dataset.habitId;
+  clearTimeout(minimumAutoSaveTimers.get(habitId));
+  const note = card.querySelector(".habit-save-note");
+  if (note) note.textContent = "入力中です。少し待つと自動保存されます。";
+  const delay = Number.isFinite(options.delay) ? options.delay : 650;
+  minimumAutoSaveTimers.set(habitId, setTimeout(() => {
+    minimumAutoSaveTimers.delete(habitId);
+    saveMultiMinimumPlan(card, { statusText: "今日の目安を自動保存しました。" });
+  }, delay));
+}
+
+function flushMultiMinimumAutoSave(card) {
+  if (!card) return;
+  const habitId = card.dataset.habitId;
+  const timer = minimumAutoSaveTimers.get(habitId);
+  if (!timer) return;
+  clearTimeout(timer);
+  minimumAutoSaveTimers.delete(habitId);
+  saveMultiMinimumPlan(card, { statusText: "今日の目安を自動保存しました。" });
+}
+
+function saveMultiMinimumPlan(card, options = {}) {
+  const habit = findHabit(card?.dataset.habitId);
+  const form = card?.querySelector(".multi-minimum-edit-form");
+  const input = form?.querySelector(".multi-minimum-input");
+  const plannedMinimumAction = input?.value.trim() || "";
+  if (!habit || !plannedMinimumAction) {
+    const note = form?.querySelector(".habit-save-note");
+    if (note) note.textContent = "今日の目安を入力してください。";
+    return false;
+  }
 
   upsertByDateAndHabit(state.plans, {
     date: getRecordDateKey(),
@@ -1408,13 +1455,11 @@ function handleMultiHabitRecordsSubmit(event) {
   });
   saveState();
   card.querySelector(".multi-habit-minimum").textContent = buildMinimumSuggestionText(habit, plannedMinimumAction);
-  form.querySelector(".habit-save-note").textContent = "今日の目安を保存しました。";
-  showMultiMinimumEditor(card, false);
+  const note = form.querySelector(".habit-save-note");
+  if (note) note.textContent = options.statusText || "今日の目安を保存しました。";
   updatePlanInput();
-  renderCoachMessage({
-    type: "habit-edited",
-    habitId: habit.id,
-  });
+  renderReportReadiness();
+  return true;
 }
 
 function showMultiMinimumEditor(card, shouldShow) {
@@ -2139,8 +2184,9 @@ function buildBriefDraftDailyReportMessage(date, records) {
 }
 
 function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, index, style = "standard") {
-  const learningDuration = formatDuration(Number(checkIn.learningMinutes));
-  const learningTimeRange = formatLearningTimeRange(checkIn);
+  const isLearningHabit = habit.category === "learning";
+  const learningDuration = isLearningHabit ? formatDuration(Number(checkIn.learningMinutes)) : "";
+  const learningTimeRange = isLearningHabit ? formatLearningTimeRange(checkIn) : "";
   const lines = [
     `${index + 1}. ${habit.title}`,
     `・結果: ${statusLabels[checkIn.status] || checkIn.status}`,
@@ -3616,7 +3662,10 @@ function buildWeeklySummary() {
   const successCount = recent.filter((item) => item.status === "done" || item.status === "partial").length;
   const missedCount = recent.filter((item) => item.status === "missed").length;
   const activeDates = new Set(recent.map((item) => item.date)).size;
-  const learningMinutes = recent.reduce((total, item) => total + Number(item.learningMinutes || 0), 0);
+  const learningMinutes = recent.reduce((total, item) => {
+    if (findHabit(item.habitId)?.category !== "learning") return total;
+    return total + Number(item.learningMinutes || 0);
+  }, 0);
   const byHabit = state.habits
     .filter((habit) => habit.active || recent.some((record) => record.habitId === habit.id))
     .map((habit) => {
@@ -3851,8 +3900,9 @@ function getPrimaryLearningSessionInputs() {
 
 function buildHistoryNote(checkIn) {
   const parts = [];
-  if (checkIn.learningMinutes) parts.push(`学習時間: ${formatDuration(Number(checkIn.learningMinutes))}`);
-  const learningTimeRange = formatLearningTimeRange(checkIn);
+  const isLearningHabit = findHabit(checkIn.habitId)?.category === "learning";
+  if (isLearningHabit && checkIn.learningMinutes) parts.push(`学習時間: ${formatDuration(Number(checkIn.learningMinutes))}`);
+  const learningTimeRange = isLearningHabit ? formatLearningTimeRange(checkIn) : "";
   if (learningTimeRange) parts.push(`時間帯: ${learningTimeRange}`);
   if (checkIn.note) parts.push(checkIn.note);
   return parts.join(" / ") || "記録できたこと自体が一歩です。";

@@ -18,6 +18,10 @@ const mimeTypes = {
   ".json": "application/json; charset=utf-8",
 };
 
+function isLearningHabitId(habitId) {
+  return habitId === "learning";
+}
+
 await ensureDb();
 
 const server = createServer(async (request, response) => {
@@ -315,10 +319,10 @@ async function saveDailyRecords(records) {
     plannedMinimumAction: body.plannedMinimumAction || "",
     status: body.status || "done",
     mood: body.mood || "good",
-    learningMinutes: body.learningMinutes || "",
-    learningSessions: Array.isArray(body.learningSessions) ? body.learningSessions : [],
-    learningStartTime: body.learningStartTime || "",
-    learningEndTime: body.learningEndTime || "",
+    learningMinutes: isLearningHabitId(body.habitId) ? body.learningMinutes || "" : "",
+    learningSessions: isLearningHabitId(body.habitId) && Array.isArray(body.learningSessions) ? body.learningSessions : [],
+    learningStartTime: isLearningHabitId(body.habitId) ? body.learningStartTime || "" : "",
+    learningEndTime: isLearningHabitId(body.habitId) ? body.learningEndTime || "" : "",
     blocker: body.blocker || "",
     blockerPreset: body.blockerPreset || "",
     blockerNote: body.blockerNote || "",
@@ -390,10 +394,10 @@ async function updateDailyRecords(fromDate, records) {
       plannedMinimumAction: body.plannedMinimumAction ?? sourceRecord.plannedMinimumAction,
       status: body.status || sourceRecord.status,
       mood: body.mood || sourceRecord.mood,
-      learningMinutes: body.learningMinutes ?? sourceRecord.learningMinutes,
-      learningSessions: Array.isArray(body.learningSessions) ? body.learningSessions : sourceRecord.learningSessions,
-      learningStartTime: body.learningStartTime ?? sourceRecord.learningStartTime,
-      learningEndTime: body.learningEndTime ?? sourceRecord.learningEndTime,
+      learningMinutes: isLearningHabitId(body.habitId) ? body.learningMinutes ?? sourceRecord.learningMinutes : "",
+      learningSessions: isLearningHabitId(body.habitId) && Array.isArray(body.learningSessions) ? body.learningSessions : [],
+      learningStartTime: isLearningHabitId(body.habitId) ? body.learningStartTime ?? sourceRecord.learningStartTime : "",
+      learningEndTime: isLearningHabitId(body.habitId) ? body.learningEndTime ?? sourceRecord.learningEndTime : "",
       blocker: body.blocker ?? sourceRecord.blocker,
       blockerPreset: body.blockerPreset ?? sourceRecord.blockerPreset,
       blockerNote: body.blockerNote ?? sourceRecord.blockerNote,
@@ -727,6 +731,7 @@ function buildShortDailyReportMessage(records, date) {
   const partialCount = records.filter((record) => record.status === "partial").length;
   const missedCount = records.filter((record) => record.status === "missed").length;
   const learningMinutes = records.reduce((total, record) => {
+    if (!isLearningHabitId(record.habitId)) return total;
     const minutes = Number(record.learningMinutes);
     return Number.isFinite(minutes) ? total + minutes : total;
   }, 0);
@@ -748,6 +753,7 @@ function buildBriefDailyReportMessage(records, date) {
   const partialCount = records.filter((record) => record.status === "partial").length;
   const missedCount = records.filter((record) => record.status === "missed").length;
   const learningMinutes = records.reduce((total, record) => {
+    if (!isLearningHabitId(record.habitId)) return total;
     const minutes = Number(record.learningMinutes);
     return Number.isFinite(minutes) ? total + minutes : total;
   }, 0);
@@ -766,13 +772,14 @@ function buildBriefDailyReportMessage(records, date) {
 
 // Formats each habit block so LINE reports stay scannable even on a phone screen.
 function formatDailyRecordSection(record, index, style = "standard") {
-  const learningDuration = formatDuration(Number(record.learningMinutes));
+  const learningDuration = isLearningHabitId(record.habitId) ? formatDuration(Number(record.learningMinutes)) : "";
+  const learningTimeRange = isLearningHabitId(record.habitId) ? formatLearningTimeRange(record) : "";
   const lines = [
     `${index + 1}. ${record.habitTitle}`,
     `・結果: ${statusLabel(record.status)}`,
     record.plannedMinimumAction ? `・最低ライン: ${record.plannedMinimumAction}` : "",
     learningDuration ? `・学習時間: ${learningDuration}` : "",
-    formatLearningTimeRange(record) ? `・時間帯: ${formatLearningTimeRange(record)}` : "",
+    learningTimeRange ? `・時間帯: ${learningTimeRange}` : "",
   ].filter(Boolean);
 
   if (record.note) {
@@ -900,6 +907,7 @@ function buildDailyReportSummary(records) {
   const partialCount = records.filter((record) => record.status === "partial").length;
   const missedCount = records.filter((record) => record.status === "missed").length;
   const learningMinutes = records.reduce((total, record) => {
+    if (!isLearningHabitId(record.habitId)) return total;
     const minutes = Number(record.learningMinutes);
     return Number.isFinite(minutes) ? total + minutes : total;
   }, 0);
