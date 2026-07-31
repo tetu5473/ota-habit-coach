@@ -54,6 +54,7 @@ const moodLabels = {
 
 const reportStyleLabels = {
   short: "短め",
+  brief: "超要約",
   standard: "標準",
   detailed: "詳しめ",
 };
@@ -2081,6 +2082,7 @@ function previewDailyReport() {
 
 function buildDraftDailyReportMessage(date, records, style = "standard") {
   if (style === "short") return buildShortDraftDailyReportMessage(date, records);
+  if (style === "brief") return buildBriefDraftDailyReportMessage(date, records);
 
   const lines = [
     "【太田の習慣レポート】",
@@ -2117,6 +2119,25 @@ function buildShortDraftDailyReportMessage(date, records) {
   return lines.join("\n").trim();
 }
 
+function buildBriefDraftDailyReportMessage(date, records) {
+  const doneCount = records.filter(({ checkIn }) => checkIn.status === "done").length;
+  const partialCount = records.filter(({ checkIn }) => checkIn.status === "partial").length;
+  const missedCount = records.filter(({ checkIn }) => checkIn.status === "missed").length;
+  const learningMinutes = records.reduce((total, { checkIn }) => total + Number(checkIn.learningMinutes || 0), 0);
+  const lines = [
+    "【太田の習慣レポート】",
+    `${formatShortDate(date)} / できた${doneCount}・少し${partialCount}・未達${missedCount}`,
+    learningMinutes ? `学習: ${formatDuration(learningMinutes)}` : "",
+    "",
+    "【要点】",
+    ...records.map(({ habit, checkIn }) => {
+      const noteSummary = summarizeDraftDailyNote(checkIn.note || "");
+      return `・${habit.title}: ${statusLabels[checkIn.status] || checkIn.status}${noteSummary ? ` / ${noteSummary}` : ""}`;
+    }),
+  ].filter(Boolean);
+  return lines.join("\n").trim();
+}
+
 function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, index, style = "standard") {
   const learningDuration = formatDuration(Number(checkIn.learningMinutes));
   const learningTimeRange = formatLearningTimeRange(checkIn);
@@ -2135,6 +2156,12 @@ function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, ind
 
   lines.push("");
   return lines;
+}
+
+function summarizeDraftDailyNote(note) {
+  const pdcaLines = summarizeDraftPdcaNote(note);
+  if (pdcaLines.length) return summarizeDraftText(pdcaLines.join(" / "), 52);
+  return summarizeDraftText(note, 52);
 }
 
 function formatDraftReportNote(note) {
@@ -2690,7 +2717,7 @@ function handlePageTabClick(event) {
 
 // Renders the plain LINE report as a light review card before the user sends it.
 function buildLineReportPreviewHtml(text) {
-  return text
+  const body = text
     .split(/\r?\n/)
     .map((line) => {
       const trimmed = line.trim();
@@ -2710,6 +2737,17 @@ function buildLineReportPreviewHtml(text) {
       return `<p class="report-preview-note">${escapeHtml(trimmed)}</p>`;
     })
     .join("");
+  return `
+    <div class="report-preview-shell">
+      <div class="report-preview-toolbar">
+        <span>LINE送信プレビュー</span>
+        <strong>送信前確認</strong>
+      </div>
+      <div class="report-preview-bubble">
+        ${body}
+      </div>
+    </div>
+  `;
 }
 
 function render(latestEvent = null) {

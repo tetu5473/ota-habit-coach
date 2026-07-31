@@ -710,6 +710,7 @@ async function sendEmailViaGoogleScript({ to, subject, text }) {
 function buildDailyReportMessage(db, date, style = "standard") {
   const records = db.dailyRecords.filter((record) => record.date === date);
   if (style === "short") return buildShortDailyReportMessage(records, date);
+  if (style === "brief") return buildBriefDailyReportMessage(records, date);
 
   const lines = [
     "【太田の習慣レポート】",
@@ -742,6 +743,27 @@ function buildShortDailyReportMessage(records, date) {
   ].filter(Boolean).join("\n").trim();
 }
 
+function buildBriefDailyReportMessage(records, date) {
+  const doneCount = records.filter((record) => record.status === "done").length;
+  const partialCount = records.filter((record) => record.status === "partial").length;
+  const missedCount = records.filter((record) => record.status === "missed").length;
+  const learningMinutes = records.reduce((total, record) => {
+    const minutes = Number(record.learningMinutes);
+    return Number.isFinite(minutes) ? total + minutes : total;
+  }, 0);
+  return [
+    "【太田の習慣レポート】",
+    `${formatJapaneseDate(date)} / できた${doneCount}・少し${partialCount}・未達${missedCount}`,
+    learningMinutes ? `学習: ${formatDuration(learningMinutes)}` : "",
+    "",
+    "【要点】",
+    ...records.map((record) => {
+      const note = summarizeDailyNote(record.note || "");
+      return `・${record.habitTitle}: ${statusLabel(record.status)}${note ? ` / ${note}` : ""}`;
+    }),
+  ].filter(Boolean).join("\n").trim();
+}
+
 // Formats each habit block so LINE reports stay scannable even on a phone screen.
 function formatDailyRecordSection(record, index, style = "standard") {
   const learningDuration = formatDuration(Number(record.learningMinutes));
@@ -760,6 +782,12 @@ function formatDailyRecordSection(record, index, style = "standard") {
 
   lines.push("");
   return lines;
+}
+
+function summarizeDailyNote(note) {
+  const pdcaLines = summarizePdcaNote(note);
+  if (pdcaLines.length) return summarizeText(pdcaLines.join(" / "), 52);
+  return summarizeText(note, 52);
 }
 
 function formatReportNote(note) {
