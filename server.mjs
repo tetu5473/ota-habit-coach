@@ -469,6 +469,8 @@ async function appendReportLog({ date, target, style, result }) {
     style,
     sent: Boolean(result?.sent || result?.line?.sent || result?.email?.sent),
     lineSent: Boolean(result?.line?.sent || result?.sent),
+    coachLineSent: Boolean(result?.line?.recipients?.coach?.sent),
+    studentLineSent: Boolean(result?.line?.recipients?.student?.sent || (target === "student" && (result?.line?.sent || result?.sent))),
     emailSent: Boolean(result?.email?.sent),
     reason: result?.reason || result?.line?.reason || result?.email?.reason || "",
     createdAt: new Date().toISOString(),
@@ -757,16 +759,22 @@ function buildBriefDailyReportMessage(records, date) {
     const minutes = Number(record.learningMinutes);
     return Number.isFinite(minutes) ? total + minutes : total;
   }, 0);
+  const strongestNotes = records
+    .map((record) => {
+      const note = summarizeDailyNote(record.note || "");
+      return note ? `${record.habitTitle}: ${note}` : "";
+    })
+    .filter(Boolean)
+    .slice(0, 2);
   return [
     "【太田の習慣レポート】",
     `${formatJapaneseDate(date)} / できた${doneCount}・少し${partialCount}・未達${missedCount}`,
     learningMinutes ? `学習: ${formatDuration(learningMinutes)}` : "",
     "",
-    "【要点】",
-    ...records.map((record) => {
-      const note = summarizeDailyNote(record.note || "");
-      return `・${record.habitTitle}: ${statusLabel(record.status)}${note ? ` / ${note}` : ""}`;
-    }),
+    ...records.map((record) => `・${record.habitTitle}: ${statusLabel(record.status)}`),
+    strongestNotes.length ? "" : "",
+    strongestNotes.length ? "【要点】" : "",
+    ...strongestNotes.map((note) => `・${note}`),
   ].filter(Boolean).join("\n").trim();
 }
 

@@ -287,6 +287,8 @@ const elements = {
   submissionTestStatus: document.querySelector("#submissionTestStatus"),
   reportLogList: document.querySelector("#reportLogList"),
   lineWebhookStatus: document.querySelector("#lineWebhookStatus"),
+  appEnvironmentBadge: document.querySelector("#appEnvironmentBadge"),
+  sendTargetDetail: document.querySelector("#sendTargetDetail"),
   calendarMonthLabel: document.querySelector("#calendarMonthLabel"),
   calendarGrid: document.querySelector("#calendarGrid"),
   calendarDetail: document.querySelector("#calendarDetail"),
@@ -362,10 +364,12 @@ function init() {
   elements.copyWeeklyReportButton?.addEventListener("click", copyWeeklyReport);
   elements.saveWeeklyReportPageButton?.addEventListener("click", saveWeeklyReportPage);
   elements.openWeeklyEditButton?.addEventListener("click", openWeeklyEditDate);
+  elements.reportLogList?.addEventListener("click", handleReportLogAction);
   elements.weeklyReportStyle?.addEventListener("change", () => {
     if (!elements.weeklyReportPreview?.hidden) buildAndShowWeeklyReport();
   });
   elements.dailyReportStyle?.addEventListener("change", () => {
+    renderSendTargetDetail();
     if (!elements.dailyLineReportPreview?.hidden || !elements.lineReportPreview?.hidden) previewDailyReport();
   });
   [elements.historyMonthFilter, elements.historyHabitFilter, elements.historyStatusFilter].forEach((filter) => {
@@ -1898,6 +1902,11 @@ function buildLineReportStatus(report) {
   return reasons[report?.reason] || "日次レポート送信は保留中です。";
 }
 
+function buildReportSendTargetText(target = "coach_and_student") {
+  if (target === "student") return "送信先: 自分だけ。講師には送信しません。";
+  return "送信先: 講師と自分。講師へ送る前に確認ダイアログを表示します。";
+}
+
 function getRecordSaveStatusType(report) {
   if (report?.sent || report?.line?.sent || report?.email?.sent) return "success";
   if (
@@ -1938,7 +1947,7 @@ async function sendDailyReportAgain(options = {}) {
     renderReportReadiness();
     return;
   }
-  elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}のレポート送信を確認しています。`;
+  elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}のレポート送信を確認しています。${buildReportSendTargetText("coach_and_student")}`;
   try {
     const response = await fetch(`${API_BASE}/api/reports/daily`, {
       method: "POST",
@@ -2088,7 +2097,7 @@ async function sendSelfTestReportAgain(options = {}) {
     renderReportReadiness();
     return;
   }
-  elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}のレポートを自分だけにテスト送信しています。`;
+  elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}のレポートを自分だけにテスト送信しています。${buildReportSendTargetText("student")}`;
   try {
     const response = await fetch(`${API_BASE}/api/reports/daily`, {
       method: "POST",
@@ -2169,16 +2178,22 @@ function buildBriefDraftDailyReportMessage(date, records) {
   const partialCount = records.filter(({ checkIn }) => checkIn.status === "partial").length;
   const missedCount = records.filter(({ checkIn }) => checkIn.status === "missed").length;
   const learningMinutes = records.reduce((total, { checkIn }) => total + Number(checkIn.learningMinutes || 0), 0);
+  const strongestNotes = records
+    .map(({ habit, checkIn }) => {
+      const noteSummary = summarizeDraftDailyNote(checkIn.note || "");
+      return noteSummary ? `${habit.title}: ${noteSummary}` : "";
+    })
+    .filter(Boolean)
+    .slice(0, 2);
   const lines = [
     "【太田の習慣レポート】",
     `${formatShortDate(date)} / できた${doneCount}・少し${partialCount}・未達${missedCount}`,
     learningMinutes ? `学習: ${formatDuration(learningMinutes)}` : "",
     "",
-    "【要点】",
-    ...records.map(({ habit, checkIn }) => {
-      const noteSummary = summarizeDraftDailyNote(checkIn.note || "");
-      return `・${habit.title}: ${statusLabels[checkIn.status] || checkIn.status}${noteSummary ? ` / ${noteSummary}` : ""}`;
-    }),
+    ...records.map(({ habit, checkIn }) => `・${habit.title}: ${statusLabels[checkIn.status] || checkIn.status}`),
+    strongestNotes.length ? "" : "",
+    strongestNotes.length ? "【要点】" : "",
+    ...strongestNotes.map((note) => `・${note}`),
   ].filter(Boolean);
   return lines.join("\n").trim();
 }
@@ -2797,6 +2812,8 @@ function buildLineReportPreviewHtml(text) {
 }
 
 function render(latestEvent = null) {
+  renderEnvironmentBadge();
+  renderSendTargetDetail();
   renderSelectedRecordDate();
   renderReportReadiness();
   renderTodayPromises();
@@ -2806,6 +2823,36 @@ function render(latestEvent = null) {
   renderCalendar();
   renderHistory();
   renderCoachMessage(latestEvent);
+}
+
+function renderEnvironmentBadge() {
+  if (!elements.appEnvironmentBadge) return;
+  const host = window.location.hostname;
+  let label = "その他の環境";
+  let detail = "この画面は共有用URL以外で開いています。";
+  let status = "other";
+  if (host === "localhost" || host === "127.0.0.1") {
+    label = "ローカル版";
+    detail = "Mac内で確認中";
+    status = "local";
+  } else if (host.includes("onrender.com")) {
+    label = "Render版";
+    detail = "共有URLで確認中";
+    status = "render";
+  }
+  elements.appEnvironmentBadge.dataset.status = status;
+  elements.appEnvironmentBadge.innerHTML = `<strong>${escapeHtml(label)}</strong><span>${escapeHtml(detail)}</span>`;
+}
+
+function renderSendTargetDetail() {
+  if (!elements.sendTargetDetail) return;
+  const styleLabel = reportStyleLabels[getDailyReportStyle()] || "標準";
+  const recordDateKey = getRecordDateKey();
+  const savedRecords = state.checkIns.filter((checkIn) => checkIn.date === recordDateKey);
+  const savedText = savedRecords.length
+    ? `${formatShortDate(recordDateKey)}は${savedRecords.length}件保存済み。`
+    : `${formatShortDate(recordDateKey)}は保存前の入力内容を確認中。`;
+  elements.sendTargetDetail.textContent = `${savedText} 報告文は${styleLabel}。通常送信は講師と自分へ、自分だけテストは講師に送らず自分へ送ります。`;
 }
 
 function renderReportReadiness() {
@@ -3123,20 +3170,62 @@ function renderReportLogs(logs) {
     const targetLabel = formatReportTarget(log.target);
     const statusLabel = log.sent ? "送信済み" : "未送信・保留";
     const reason = log.reason || log.line?.reason || "";
+    const lineDetail = buildReportLogLineDetail(log);
     const item = document.createElement("article");
     item.className = "report-log-item";
     item.dataset.status = log.sent ? "success" : "pending";
     item.dataset.target = log.target || "normal";
+    item.dataset.date = log.date || "";
+    item.dataset.style = log.style || "standard";
     item.innerHTML = `
       <div class="report-log-header">
         <strong>${escapeHtml(formatShortDate(log.date))}</strong>
         <span class="report-log-badge">${escapeHtml(targetLabel)}</span>
       </div>
       <p>${escapeHtml(statusLabel)} / ${escapeHtml(reportStyleLabels[log.style] || "標準")} / ${escapeHtml(formatCreatedAt(log.createdAt))}</p>
+      <p class="report-log-meta">${escapeHtml(lineDetail)}</p>
       ${reason ? `<small>${escapeHtml(formatReportLogReason(reason))}</small>` : ""}
+      <div class="report-log-actions">
+        <button class="ghost-button compact-button" type="button" data-report-log-action="preview">文面確認</button>
+        <button class="ghost-button compact-button self-test-button" type="button" data-report-log-action="self-test">自分だけ再送</button>
+        <button class="ghost-button compact-button" type="button" data-report-log-action="resend">本番再送</button>
+      </div>
     `;
     elements.reportLogList.append(item);
   });
+}
+
+function buildReportLogLineDetail(log) {
+  if (log.target === "student") {
+    return log.lineSent ? "LINE: 自分だけに送信済み" : "LINE: 自分だけ送信は未完了";
+  }
+  const parts = [];
+  if (log.coachLineSent || log.lineSent) parts.push("講師LINE");
+  if (log.studentLineSent) parts.push("自分LINE");
+  if (log.emailSent) parts.push("メール");
+  return parts.length ? `送信済み: ${parts.join("、")}` : "送信先への送信は未完了または確認待ち";
+}
+
+function handleReportLogAction(event) {
+  const button = event.target.closest("[data-report-log-action]");
+  if (!button) return;
+  const item = button.closest(".report-log-item");
+  const date = item?.dataset.date;
+  if (!date) return;
+  const action = button.dataset.reportLogAction;
+  if (elements.dailyReportStyle && item.dataset.style) {
+    elements.dailyReportStyle.value = item.dataset.style;
+  }
+  selectRecordDate(date);
+  if (action === "preview") {
+    previewDailyReport();
+    return;
+  }
+  if (action === "self-test") {
+    sendSelfTestReportAgain({ date });
+    return;
+  }
+  sendDailyReportAgain({ date });
 }
 
 function formatReportLogReason(reason) {

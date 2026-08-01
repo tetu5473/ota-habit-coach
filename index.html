@@ -31,7 +31,10 @@
           <p class="eyebrow">Small promise habit coach</p>
           <h1>太田の習慣コーチ</h1>
         </div>
-        <button class="ghost-button" id="resetDataButton" type="button">初期化</button>
+        <div class="topbar-actions">
+          <p class="environment-badge" id="appEnvironmentBadge">環境を確認中</p>
+          <button class="ghost-button" id="resetDataButton" type="button">初期化</button>
+        </div>
       </header>
       <nav class="page-tabs" aria-label="画面内の移動">
         <button type="button" data-scroll-target="#dailyRecordSection">今日の記録</button>
@@ -254,6 +257,13 @@
                 </article>
               </div>
               <p class="helper-text" id="lineReportStatus">記録保存時のLINEレポート状態を表示します。</p>
+              <section class="line-send-safety-panel" aria-label="送信先の確認">
+                <div>
+                  <span class="eyebrow">Send target</span>
+                  <strong>送信先の確認</strong>
+                </div>
+                <p id="sendTargetDetail">通常送信は講師と自分へ、テスト送信は自分だけへ送ります。</p>
+              </section>
               <div class="button-row">
                 <button class="ghost-button compact-button" id="previewDailyReportButton" type="button">送信予定文面を確認</button>
                 <button class="ghost-button compact-button self-test-button" id="sendSelfTestReportButton" type="button">自分だけに再送</button>

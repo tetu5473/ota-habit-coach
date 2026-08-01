@@ -87,6 +87,41 @@ textarea {
   margin-bottom: 14px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.environment-badge {
+  display: grid;
+  gap: 1px;
+  min-width: 128px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.environment-badge strong {
+  color: var(--ink);
+  font-size: 0.84rem;
+}
+
+.environment-badge[data-status="render"] {
+  border-color: rgba(58, 127, 192, 0.24);
+  background: #f7fbff;
+}
+
+.environment-badge[data-status="local"] {
+  border-color: rgba(54, 166, 106, 0.24);
+  background: #f7fbf7;
+}
+
 .page-tabs {
   position: sticky;
   top: 0;
@@ -128,6 +163,7 @@ textarea {
 #dailyRecordSection,
 #lineSection,
 #weeklySection,
+#submissionSection,
 #historySection,
 #testSection {
   scroll-margin-top: 58px;
@@ -1334,6 +1370,29 @@ fieldset {
   gap: 8px;
 }
 
+.line-send-safety-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(58, 127, 192, 0.22);
+  border-radius: 8px;
+  background: #f7fbff;
+}
+
+.line-send-safety-panel strong {
+  display: block;
+  color: #245f91;
+}
+
+.line-send-safety-panel p {
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .line-send-mode-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1517,6 +1576,22 @@ fieldset {
   line-height: 1.35;
 }
 
+.report-log-meta {
+  color: #245f91 !important;
+  font-weight: 750;
+}
+
+.report-log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.report-log-actions .compact-button {
+  min-height: 34px;
+}
+
 .line-panel,
 .weekly-panel,
 .history-panel {
@@ -1689,9 +1764,9 @@ fieldset {
 
 .record-edit-dialog {
   width: min(780px, 100%);
-  max-height: none;
+  max-height: calc(100dvh - 36px);
   min-height: min-content;
-  overflow: visible;
+  overflow: auto;
   overscroll-behavior: contain;
 }
 
@@ -2597,6 +2672,19 @@ fieldset {
   .send-target-card,
   .report-style-field {
     flex: 1 1 100%;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    justify-content: space-between;
+  }
+
+  .line-send-safety-panel {
+    grid-template-columns: 1fr;
   }
 
   .report-check-panel ul {
