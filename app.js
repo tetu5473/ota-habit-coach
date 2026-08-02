@@ -360,6 +360,9 @@ function init() {
     if (event.target.matches("[data-report-preview-close]")) closeReportPreviewModal();
   });
   elements.recordEditForm?.addEventListener("submit", handleRecordEditSubmit);
+  elements.recordEditSaveButton?.addEventListener("click", handleRecordEditActionClick);
+  elements.recordEditSelfTestButton?.addEventListener("click", handleRecordEditActionClick);
+  elements.recordEditSendButton?.addEventListener("click", handleRecordEditActionClick);
   elements.closeRecordEditButton?.addEventListener("click", closeRecordEditModal);
   elements.cancelRecordEditButton?.addEventListener("click", closeRecordEditModal);
   elements.recordEditModal?.addEventListener("click", (event) => {
@@ -2750,11 +2753,20 @@ function updateRecordEditLearningItem(item) {
   }
 }
 
+function handleRecordEditActionClick(event) {
+  const afterSave = event.currentTarget?.dataset.afterSave || "save";
+  handleRecordEditSave(afterSave);
+}
+
 async function handleRecordEditSubmit(event) {
   event.preventDefault();
+  const afterSave = event.submitter?.dataset.afterSave || "save";
+  await handleRecordEditSave(afterSave);
+}
+
+async function handleRecordEditSave(afterSave = "save") {
   if (!editingRecordDate) return;
 
-  const afterSave = event.submitter?.dataset.afterSave || "save";
   const fromDate = editingRecordDate;
   const toDate = elements.recordEditDate.value;
   if (!isValidDateKey(toDate)) {
