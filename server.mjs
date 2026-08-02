@@ -22,6 +22,11 @@ function isLearningHabitId(habitId) {
   return habitId === "learning";
 }
 
+function normalizeNoteTone(value) {
+  const allowed = new Set(["normal", "important", "next", "done", "watch"]);
+  return allowed.has(value) ? value : "normal";
+}
+
 await ensureDb();
 
 const server = createServer(async (request, response) => {
@@ -327,6 +332,7 @@ async function saveDailyRecords(records) {
     blockerPreset: body.blockerPreset || "",
     blockerNote: body.blockerNote || "",
     note: body.note || "",
+    noteTone: normalizeNoteTone(body.noteTone),
     createdAt: new Date().toISOString(),
   }));
 
@@ -402,6 +408,7 @@ async function updateDailyRecords(fromDate, records) {
       blockerPreset: body.blockerPreset ?? sourceRecord.blockerPreset,
       blockerNote: body.blockerNote ?? sourceRecord.blockerNote,
       note: body.note ?? sourceRecord.note,
+      noteTone: normalizeNoteTone(body.noteTone ?? sourceRecord.noteTone),
       updatedAt,
     }];
   });
@@ -762,7 +769,8 @@ function buildBriefDailyReportMessage(records, date) {
   const strongestNotes = records
     .map((record) => {
       const note = summarizeDailyNote(record.note || "");
-      return note ? `${record.habitTitle}: ${note}` : "";
+      const toneLabel = getReportNoteToneLabel(record.noteTone);
+      return note ? `${record.habitTitle}${toneLabel ? `［${toneLabel}］` : ""}: ${note}` : "";
     })
     .filter(Boolean)
     .slice(0, 2);
@@ -791,6 +799,8 @@ function formatDailyRecordSection(record, index, style = "standard") {
   ].filter(Boolean);
 
   if (record.note) {
+    const toneLabel = getReportNoteToneLabel(record.noteTone);
+    if (toneLabel) lines.push(`・メモ区分: ${toneLabel}`);
     lines.push("・メモ:");
     lines.push(...formatReportNote(record.note));
   }
@@ -831,6 +841,16 @@ function normalizeReportNoteLine(line) {
   const label = labels[code];
   const body = toPlainReportStyle(match[2].replace(new RegExp(`^${label}\\s*[:：]?\\s*`), ""));
   return body ? `${code}：${label} ${body}` : `${code}：${label}`;
+}
+
+function getReportNoteToneLabel(tone) {
+  const labels = {
+    important: "重要",
+    next: "次回やる",
+    done: "確認済み",
+    watch: "注意",
+  };
+  return labels[normalizeNoteTone(tone)] || "";
 }
 
 function summarizePdcaNote(note) {

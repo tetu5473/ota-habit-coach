@@ -59,6 +59,22 @@ const reportStyleLabels = {
   detailed: "詳しめ",
 };
 
+const noteToneLabels = {
+  normal: "通常",
+  important: "重要",
+  next: "次回やる",
+  done: "確認済み",
+  watch: "注意",
+};
+
+const noteToneHelp = {
+  normal: "通常のメモとして扱います。",
+  important: "大事な内容として赤系で目立たせます。",
+  next: "次回やる内容として青系で表示します。",
+  done: "確認済みとして緑系で表示します。",
+  watch: "注意点としてオレンジ系で表示します。",
+};
+
 const conditionLabels = {
   good: "元気な日",
   normal: "普通の日",
@@ -248,6 +264,9 @@ const elements = {
   selfTestReportButton: document.querySelector("#selfTestReportButton"),
   sendSelfTestReportButton: document.querySelector("#sendSelfTestReportButton"),
   sendDailyReportButton: document.querySelector("#sendDailyReportButton"),
+  copyDailyReportButton: document.querySelector("#copyDailyReportButton"),
+  copyDailyReportButtonSecondary: document.querySelector("#copyDailyReportButtonSecondary"),
+  dailyReportLengthStatus: document.querySelector("#dailyReportLengthStatus"),
   lineReportPreview: document.querySelector("#lineReportPreview"),
   dailyLineReportPreview: document.querySelector("#dailyLineReportPreview"),
   modalLineReportPreview: document.querySelector("#modalLineReportPreview"),
@@ -334,6 +353,8 @@ function init() {
   elements.dailyPreviewReportButton.addEventListener("click", previewDailyReport);
   elements.selfTestReportButton?.addEventListener("click", handleSelfTestReport);
   elements.sendSelfTestReportButton?.addEventListener("click", sendSelfTestReportAgain);
+  elements.copyDailyReportButton?.addEventListener("click", copyDailyReport);
+  elements.copyDailyReportButtonSecondary?.addEventListener("click", copyDailyReport);
   elements.closeReportPreviewButton?.addEventListener("click", closeReportPreviewModal);
   elements.reportPreviewModal?.addEventListener("click", (event) => {
     if (event.target.matches("[data-report-preview-close]")) closeReportPreviewModal();
@@ -370,6 +391,7 @@ function init() {
   });
   elements.dailyReportStyle?.addEventListener("change", () => {
     renderSendTargetDetail();
+    updateDailyReportLengthStatus();
     if (!elements.dailyLineReportPreview?.hidden || !elements.lineReportPreview?.hidden) previewDailyReport();
   });
   [elements.historyMonthFilter, elements.historyHabitFilter, elements.historyStatusFilter].forEach((filter) => {
@@ -387,6 +409,7 @@ function init() {
   renderTestChecklist();
   renderUiuxImprovements();
   render();
+  updateDailyReportLengthStatus();
   updateScrollTopButton();
   loadLineLinkStatus();
   loadServerRecords();
@@ -1068,6 +1091,7 @@ function renderMultiHabitRecordForms() {
       const status = savedCheckIn?.status || "done";
       const mood = savedCheckIn?.mood || "good";
       const note = savedCheckIn?.note || "";
+      const noteTone = normalizeNoteTone(savedCheckIn?.noteTone);
       card.innerHTML = `
         <button class="multi-habit-card-header" type="button" aria-expanded="${isOpen}" aria-controls="record-panel-${escapeHtml(habit.id)}">
           <div>
@@ -1115,15 +1139,45 @@ function renderMultiHabitRecordForms() {
               <label>ひとことメモ</label>
               ${buildVoiceButtonHtml(`note:${habit.id}`, `${habit.title}のひとことメモを音声入力`, "compact-voice-button")}
             </div>
-            <textarea class="multi-note" maxlength="2000" placeholder="この習慣について残したいこと">${escapeHtml(note)}</textarea>
+            <div class="note-style-row">
+              <label>
+                メモ色
+                ${buildNoteToneSelectHtml(noteTone, "multi-note-tone")}
+              </label>
+              <p class="note-tone-help">${escapeHtml(noteToneHelp[noteTone])}</p>
+            </div>
+            <textarea class="multi-note" data-tone="${escapeHtml(noteTone)}" maxlength="2000" placeholder="この習慣について残したいこと">${escapeHtml(note)}</textarea>
             <div class="note-suggestion-box" aria-live="polite"></div>
           </div>
         </div>
       `;
       elements.multiHabitRecords.append(card);
       if (habit.category === "learning") updateMultiLearningDuration(card);
+      updateNoteTonePreview(card);
       updateNoteSuggestions(card);
     });
+}
+
+function buildNoteToneSelectHtml(selectedTone, className) {
+  return `
+    <select class="${escapeHtml(className)}">
+      ${Object.entries(noteToneLabels).map(([value, label]) =>
+        `<option value="${escapeHtml(value)}" ${selectedTone === value ? "selected" : ""}>${escapeHtml(label)}</option>`,
+      ).join("")}
+    </select>
+  `;
+}
+
+function normalizeNoteTone(value) {
+  return Object.hasOwn(noteToneLabels, value) ? value : "normal";
+}
+
+function updateNoteTonePreview(card) {
+  const tone = normalizeNoteTone(card?.querySelector(".multi-note-tone")?.value);
+  const textarea = card?.querySelector(".multi-note");
+  const help = card?.querySelector(".note-tone-help");
+  if (textarea) textarea.dataset.tone = tone;
+  if (help) help.textContent = noteToneHelp[tone];
 }
 
 function buildMoodSelectHtml(selectedMood) {
@@ -1236,16 +1290,31 @@ function handleMultiHabitRecordsInput(event) {
   if (!card) return;
   if (event.target.matches(".multi-minimum-input")) {
     scheduleMultiMinimumAutoSave(card);
+    updateDailyReportLengthStatus();
+    renderReportReadiness();
+    return;
+  }
+  if (event.target.matches("input[type='radio'][name^='status-']")) {
+    updateDailyReportLengthStatus();
+    renderReportReadiness();
     return;
   }
   if (event.target.matches(".multi-note")) {
     updateNoteSuggestions(card);
+    updateDailyReportLengthStatus();
+    renderReportReadiness();
+    return;
+  }
+  if (event.target.matches(".multi-note-tone")) {
+    updateNoteTonePreview(card);
+    updateDailyReportLengthStatus();
     renderReportReadiness();
     return;
   }
   if (card.dataset.category !== "learning") return;
   if (event.target.matches(".learning-start-time, .learning-end-time")) {
     updateMultiLearningDuration(card);
+    updateDailyReportLengthStatus();
     renderReportReadiness();
   }
 }
@@ -1685,6 +1754,7 @@ function collectMultiHabitRecords(recordDateKey) {
         blockerPreset: "",
         blockerNote: "",
         note: card.querySelector(".multi-note")?.value.trim() || "",
+        noteTone: normalizeNoteTone(card.querySelector(".multi-note-tone")?.value),
       };
       return { habit, plannedMinimumAction, checkIn };
     });
@@ -1768,6 +1838,7 @@ async function loadServerRecords() {
           blockerPreset: record.blockerPreset || "",
           blockerNote: record.blockerNote || "",
           note: record.note || "",
+          noteTone: normalizeNoteTone(record.noteTone),
         });
         restoredCount += 1;
       }
@@ -2129,9 +2200,60 @@ function previewDailyReport() {
   hideLineReportPreviews();
   const records = collectMultiHabitRecords(recordDateKey);
   const text = buildDraftDailyReportMessage(recordDateKey, records, getDailyReportStyle());
+  updateDailyReportLengthStatus(text);
   showLineReportPreviews(text);
   elements.lineReportStatus.textContent = `${formatShortDate(recordDateKey)}の入力中のLINE文面を表示しました。報告文は${reportStyleLabels[getDailyReportStyle()]}です。実際の送信はしていません。`;
   setRecordSaveStatus(`${formatShortDate(recordDateKey)}の入力中のLINE文面を表示しました。保存・送信はしていません。`, "neutral");
+}
+
+function getCurrentDraftDailyReportText() {
+  const recordDateKey = getRecordDateKey();
+  const records = collectMultiHabitRecords(recordDateKey);
+  return buildDraftDailyReportMessage(recordDateKey, records, getDailyReportStyle());
+}
+
+async function copyDailyReport() {
+  const text = getCurrentDraftDailyReportText();
+  updateDailyReportLengthStatus(text);
+
+  try {
+    await navigator.clipboard.writeText(text);
+    const message = "今日の報告文をコピーしました。LINE送信はしていません。";
+    elements.lineReportStatus.textContent = message;
+    setRecordSaveStatus(message, "success");
+  } catch {
+    const message = "コピーできませんでした。送信前プレビューから内容を選択してコピーしてください。";
+    elements.lineReportStatus.textContent = message;
+    setRecordSaveStatus(message, "error");
+  }
+}
+
+function updateDailyReportLengthStatus(text = getCurrentDraftDailyReportText()) {
+  if (!elements.dailyReportLengthStatus) return;
+  const info = buildDailyReportLengthInfo(text);
+  elements.dailyReportLengthStatus.dataset.status = info.status;
+  elements.dailyReportLengthStatus.textContent = info.message;
+}
+
+function buildDailyReportLengthInfo(text) {
+  const characterCount = Array.from(text || "").length;
+  const lineCount = (text || "").split(/\r?\n/).length;
+  if (characterCount <= 360) {
+    return {
+      status: "short",
+      message: `報告文は短めです。${characterCount}文字 / ${lineCount}行。講師がすぐ確認しやすい長さです。`,
+    };
+  }
+  if (characterCount <= 760) {
+    return {
+      status: "good",
+      message: `報告文は読みやすい長さです。${characterCount}文字 / ${lineCount}行。`,
+    };
+  }
+  return {
+    status: "long",
+    message: `報告文が少し長めです。${characterCount}文字 / ${lineCount}行。必要なら「短め」か「超要約」に切り替えてください。`,
+  };
 }
 
 function buildDraftDailyReportMessage(date, records, style = "standard") {
@@ -2181,7 +2303,8 @@ function buildBriefDraftDailyReportMessage(date, records) {
   const strongestNotes = records
     .map(({ habit, checkIn }) => {
       const noteSummary = summarizeDraftDailyNote(checkIn.note || "");
-      return noteSummary ? `${habit.title}: ${noteSummary}` : "";
+      const toneLabel = getReportNoteToneLabel(checkIn.noteTone);
+      return noteSummary ? `${habit.title}${toneLabel ? `［${toneLabel}］` : ""}: ${noteSummary}` : "";
     })
     .filter(Boolean)
     .slice(0, 2);
@@ -2211,6 +2334,8 @@ function formatDraftDailyRecordSection(habit, plannedMinimumAction, checkIn, ind
   ].filter(Boolean);
 
   if (checkIn.note) {
+    const toneLabel = getReportNoteToneLabel(checkIn.noteTone);
+    if (toneLabel) lines.push(`・メモ区分: ${toneLabel}`);
     lines.push("・メモ:");
     lines.push(...formatDraftReportNote(checkIn.note));
   }
@@ -2251,6 +2376,17 @@ function normalizeDraftReportNoteLine(line) {
   const label = labels[code];
   const body = toPlainDraftReportStyle(match[2].replace(new RegExp(`^${label}\\s*[:：]?\\s*`), "").trim());
   return body ? `${code}：${label} ${body}` : `${code}：${label}`;
+}
+
+function getReportNoteToneLabel(tone) {
+  const normalized = normalizeNoteTone(tone);
+  return normalized === "normal" ? "" : noteToneLabels[normalized];
+}
+
+function getNoteToneKeyFromLabel(label) {
+  const normalizedLabel = String(label || "").replace(/[［］\[\]]/g, "").trim();
+  const match = Object.entries(noteToneLabels).find(([, value]) => value === normalizedLabel);
+  return match ? match[0] : "normal";
 }
 
 function summarizeDraftPdcaNote(note) {
@@ -2395,6 +2531,7 @@ function buildRecordEditItemHtml(record) {
   const plannedMinimumAction = getPlan(record.date, record.habitId)?.plannedMinimumAction
     || habit.minimumAction;
   const learningSessions = getLearningSessionsFromCheckIn(record);
+  const noteTone = normalizeNoteTone(record.noteTone);
   const learningRows = (learningSessions.length ? learningSessions : [{}])
     .map((session, index) => buildMultiLearningSessionRow(session, index + 1))
     .join("");
@@ -2429,7 +2566,14 @@ function buildRecordEditItemHtml(record) {
       ` : ""}
       <label>
         ひとことメモ
-        <textarea class="record-edit-note" rows="4" maxlength="2000" placeholder="この習慣について残したいこと">${escapeHtml(record.note || "")}</textarea>
+        <div class="note-style-row record-edit-note-style-row">
+          <span>
+            メモ色
+            ${buildNoteToneSelectHtml(noteTone, "record-edit-note-tone")}
+          </span>
+          <p class="note-tone-help">${escapeHtml(noteToneHelp[noteTone])}</p>
+        </div>
+        <textarea class="record-edit-note" data-tone="${escapeHtml(noteTone)}" rows="4" maxlength="2000" placeholder="この習慣について残したいこと">${escapeHtml(record.note || "")}</textarea>
       </label>
     </article>
   `;
@@ -2444,6 +2588,7 @@ function createRecordEditSnapshot(record) {
     date: record.date,
     status: record.status || "done",
     note: record.note || "",
+    noteTone: normalizeNoteTone(record.noteTone),
     plannedMinimumAction: getPlan(record.date, record.habitId)?.plannedMinimumAction
       || record.plannedMinimumAction
       || habit.minimumAction
@@ -2468,6 +2613,7 @@ function collectRecordEditDrafts() {
       date: elements.recordEditDate?.value || editingRecordDate,
       status: item.querySelector(`input[name="record-edit-status-${CSS.escape(habitId)}"]:checked`)?.value || "done",
       note: item.querySelector(".record-edit-note")?.value.trim() || "",
+      noteTone: normalizeNoteTone(item.querySelector(".record-edit-note-tone")?.value),
       plannedMinimumAction: item.querySelector(".record-edit-minimum")?.value.trim() || "",
       learningSessions,
       learningMinutes: learningSessions.reduce(
@@ -2525,6 +2671,9 @@ function buildRecordEditDiffs() {
     if (draft.note !== original.note) {
       diffs.push(`${draft.habitTitle}: メモを変更`);
     }
+    if (draft.noteTone !== original.noteTone) {
+      diffs.push(`${draft.habitTitle}: メモ色 ${noteToneLabels[original.noteTone]} → ${noteToneLabels[draft.noteTone]}`);
+    }
     if (draft.learningMinutes !== original.learningMinutes) {
       diffs.push(`${draft.habitTitle}: 学習時間 ${formatDuration(original.learningMinutes)} → ${formatDuration(draft.learningMinutes)}`);
     }
@@ -2536,6 +2685,14 @@ function buildRecordEditDiffs() {
 function handleRecordEditListInput(event) {
   if (event.target.matches(".learning-start-time, .learning-end-time")) {
     updateRecordEditLearningItem(event.target.closest(".record-edit-item"));
+  }
+  if (event.target.matches(".record-edit-note-tone")) {
+    const item = event.target.closest(".record-edit-item");
+    const textarea = item?.querySelector(".record-edit-note");
+    const help = item?.querySelector(".note-tone-help");
+    const tone = normalizeNoteTone(event.target.value);
+    if (textarea) textarea.dataset.tone = tone;
+    if (help) help.textContent = noteToneHelp[tone];
   }
   renderRecordEditDiffPreview();
 }
@@ -2630,6 +2787,7 @@ async function handleRecordEditSubmit(event) {
         learningStartTime: learningSessions[0]?.startTime || "",
         learningEndTime: learningSessions[0]?.endTime || "",
         note: item.querySelector(".record-edit-note").value.trim(),
+        noteTone: normalizeNoteTone(item.querySelector(".record-edit-note-tone")?.value),
       };
       return {
         checkIn,
@@ -2778,24 +2936,34 @@ function handlePageTabClick(event) {
 
 // Renders the plain LINE report as a light review card before the user sends it.
 function buildLineReportPreviewHtml(text) {
+  let activeNoteTone = "normal";
   const body = text
     .split(/\r?\n/)
     .map((line) => {
       const trimmed = line.trim();
       if (!trimmed) return '<div class="report-preview-spacer" aria-hidden="true"></div>';
       if (/^【.+】$/.test(trimmed)) {
+        activeNoteTone = "normal";
         return `<h3>${escapeHtml(trimmed.replace(/[【】]/g, ""))}</h3>`;
       }
       if (/^\d+\.\s/.test(trimmed)) {
+        activeNoteTone = "normal";
         return `<h4>${escapeHtml(trimmed)}</h4>`;
       }
+      const toneLine = trimmed.match(/^・メモ区分:\s*(.+)$/);
+      if (toneLine) {
+        activeNoteTone = getNoteToneKeyFromLabel(toneLine[1]);
+        return `<p class="report-preview-tone" data-tone="${escapeHtml(activeNoteTone)}">${escapeHtml(trimmed)}</p>`;
+      }
       if (trimmed.startsWith("・")) {
-        return `<p class="report-preview-item">${escapeHtml(trimmed)}</p>`;
+        const inlineTone = trimmed.match(/［(重要|次回やる|確認済み|注意)］/);
+        const itemTone = inlineTone ? getNoteToneKeyFromLabel(inlineTone[1]) : "normal";
+        return `<p class="report-preview-item" data-tone="${escapeHtml(itemTone)}">${escapeHtml(trimmed)}</p>`;
       }
       if (/^(?:[PDCA]\s*[:：]\s*)?(計画|実行|確認|改善)/.test(trimmed)) {
-        return `<strong class="report-preview-note-heading">${escapeHtml(trimmed)}</strong>`;
+        return `<strong class="report-preview-note-heading" data-tone="${escapeHtml(activeNoteTone)}">${escapeHtml(trimmed)}</strong>`;
       }
-      return `<p class="report-preview-note">${escapeHtml(trimmed)}</p>`;
+      return `<p class="report-preview-note" data-tone="${escapeHtml(activeNoteTone)}">${escapeHtml(trimmed)}</p>`;
     })
     .join("");
   return `

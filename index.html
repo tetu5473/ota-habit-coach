@@ -194,9 +194,11 @@
                   </select>
                 </label>
                 <button class="ghost-button compact-button" id="dailyPreviewReportButton" type="button">送信前に確認</button>
+                <button class="ghost-button compact-button" id="copyDailyReportButton" type="button">今日の報告をコピー</button>
                 <button class="ghost-button compact-button self-test-button" id="selfTestReportButton" type="button">自分だけにテスト送信</button>
                 <button class="primary-button" type="submit">保存してLINE送信</button>
               </div>
+              <p class="daily-report-length-status" id="dailyReportLengthStatus" data-status="neutral">送信前に報告文の長さを確認できます。</p>
               <p class="record-send-note">通常保存は講師と自分へ送信します。テスト送信は講師に送らず、自分のLINEだけで確認できます。</p>
               <section class="report-check-panel" aria-label="送信前チェック">
                 <div>
@@ -266,6 +268,7 @@
               </section>
               <div class="button-row">
                 <button class="ghost-button compact-button" id="previewDailyReportButton" type="button">送信予定文面を確認</button>
+                <button class="ghost-button compact-button" id="copyDailyReportButtonSecondary" type="button">今日の報告をコピー</button>
                 <button class="ghost-button compact-button self-test-button" id="sendSelfTestReportButton" type="button">自分だけに再送</button>
                 <button class="ghost-button compact-button" id="sendDailyReportButton" type="button">この日のレポートを再送</button>
               </div>
