@@ -1811,46 +1811,49 @@ async function loadServerRecords() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
     const records = Array.isArray(result.records) ? result.records : [];
-    let restoredCount = 0;
+    const serverCheckIns = [];
+    const serverPlans = [];
+    const serverPlanKeys = new Set();
 
     records.forEach((record) => {
       if (!record.date || !record.habitId) return;
-
-      if (!getPlan(record.date, record.habitId)) {
-        upsertByDateAndHabit(state.plans, {
+      const habit = findHabit(record.habitId);
+      const planKey = `${record.date}:${record.habitId}`;
+      if (!serverPlanKeys.has(planKey)) {
+        serverPlans.push({
           date: record.date,
           habitId: record.habitId,
-          plannedMinimumAction: record.plannedMinimumAction || findHabit(record.habitId).minimumAction,
+          plannedMinimumAction: record.plannedMinimumAction || habit.minimumAction,
         });
+        serverPlanKeys.add(planKey);
       }
-
-      if (!getCheckIn(record.date, record.habitId)) {
-        upsertByDateAndHabit(state.checkIns, {
-          date: record.date,
-          habitId: record.habitId,
-          status: record.status || "done",
-          mood: record.mood || "good",
-          learningMinutes: record.learningMinutes || "",
-          learningSessions: Array.isArray(record.learningSessions) ? record.learningSessions : [],
-          learningStartTime: record.learningStartTime || "",
-          learningEndTime: record.learningEndTime || "",
-          blocker: record.blocker || "",
-          blockerPreset: record.blockerPreset || "",
-          blockerNote: record.blockerNote || "",
-          note: record.note || "",
-          noteTone: normalizeNoteTone(record.noteTone),
-        });
-        restoredCount += 1;
-      }
+      serverCheckIns.push({
+        date: record.date,
+        habitId: record.habitId,
+        status: record.status || "done",
+        mood: record.mood || "good",
+        learningMinutes: record.learningMinutes || "",
+        learningSessions: Array.isArray(record.learningSessions) ? record.learningSessions : [],
+        learningStartTime: record.learningStartTime || "",
+        learningEndTime: record.learningEndTime || "",
+        blocker: record.blocker || "",
+        blockerPreset: record.blockerPreset || "",
+        blockerNote: record.blockerNote || "",
+        note: record.note || "",
+        noteTone: normalizeNoteTone(record.noteTone),
+      });
     });
 
-    if (restoredCount > 0) {
-      saveState();
-      updatePlanInput();
-      render({
-        type: "records-restored",
-      });
-    }
+    const localOnlyPlans = state.plans.filter(
+      (plan) => !state.checkIns.some((checkIn) => checkIn.date === plan.date && checkIn.habitId === plan.habitId),
+    );
+    state.checkIns = serverCheckIns;
+    state.plans = [...localOnlyPlans, ...serverPlans];
+    saveState();
+    updatePlanInput();
+    render({
+      type: "records-restored",
+    });
   } catch {
     // The app still works with browser-only storage when the Node API is unavailable.
   }
