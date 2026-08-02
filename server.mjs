@@ -184,7 +184,7 @@ async function handleApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/sync/render") {
     const db = await readDb();
-    const sync = await syncAllRecordsToRemote(db.dailyRecords || []);
+    const sync = await syncRecordsToRemote(db.dailyRecords || []);
     sendJson(response, 200, {
       ok: sync.ok,
       sync,
@@ -551,49 +551,6 @@ async function syncUpdatedRecordsToRemote(fromDate, updatedRecords) {
     deletedOldRecords: deleteResults,
     save: saveResult,
   };
-}
-
-async function syncAllRecordsToRemote(localRecords) {
-  if (!remoteSyncBaseUrl) return { ok: false, skipped: true, reason: "remote_sync_not_configured" };
-  const saveResult = await syncRecordsToRemote(localRecords);
-
-  try {
-    const response = await fetch(`${remoteSyncBaseUrl}/api/records`);
-    if (!response.ok) {
-      return {
-        ok: saveResult.ok,
-        save: saveResult,
-        remoteCleanup: { ok: false, status: response.status },
-      };
-    }
-    const remoteRecords = await response.json();
-    const localKeys = new Set(localRecords.map((record) => `${record.date}:${record.habitId}`));
-    const recordsToDelete = (remoteRecords.records || []).filter(
-      (record) => record.date && record.habitId && !localKeys.has(`${record.date}:${record.habitId}`),
-    );
-    const deleteResults = await Promise.all(
-      recordsToDelete.map((record) => syncDeleteRecordToRemote(record.date, record.habitId)),
-    );
-    return {
-      ok: saveResult.ok && deleteResults.every((result) => result.ok || result.skipped),
-      save: saveResult,
-      remoteCleanup: {
-        ok: deleteResults.every((result) => result.ok || result.skipped),
-        deletedCount: deleteResults.filter((result) => result.ok).length,
-      },
-    };
-  } catch (error) {
-    console.error("Remote full sync cleanup failed:", error);
-    return {
-      ok: saveResult.ok,
-      save: saveResult,
-      remoteCleanup: {
-        ok: false,
-        reason: "remote_cleanup_failed",
-        message: error.message,
-      },
-    };
-  }
 }
 
 async function sendDailyReport(record, options = {}) {
