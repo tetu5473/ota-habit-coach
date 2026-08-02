@@ -12,6 +12,8 @@ services:
         sync: false
       - key: APP_BASE_URL
         sync: false
+      - key: REMOTE_SYNC_BASE_URL
+        sync: false
       - key: STUDENT_LINK_CODE
         sync: false
       - key: COACH_LINK_CODE

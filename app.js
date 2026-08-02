@@ -1867,7 +1867,7 @@ async function syncRecordToServer(record) {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
-    const statusText = buildLineReportStatus(result.report);
+    const statusText = buildLineReportStatus(result.report, result.sync);
     elements.lineReportStatus.textContent = statusText;
     setRecordSaveStatus(`記録を保存しました。${statusText}`, getRecordSaveStatusType(result.report));
     renderReportReadiness();
@@ -1895,7 +1895,7 @@ async function syncRecordsToServer(records, options = {}) {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
-    const statusText = buildLineReportStatus(result.report);
+    const statusText = buildLineReportStatus(result.report, result.sync);
     elements.lineReportStatus.textContent = statusText;
     setRecordSaveStatus(`記録を保存しました。${statusText}`, getRecordSaveStatusType(result.report));
     renderReportReadiness();
@@ -1928,49 +1928,58 @@ async function deleteCheckIn(date, habitId) {
       body: JSON.stringify({ date, habitId }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    elements.lineReportStatus.textContent = "記録を削除しました。LINE送信はしていません。";
+    const result = await response.json();
+    elements.lineReportStatus.textContent = `記録を削除しました。LINE送信はしていません。${buildRemoteSyncStatus(result.sync)}`;
   } catch {
     elements.lineReportStatus.textContent = "ブラウザ内の記録は削除しました。サーバー側の削除は未確認です。";
   }
 }
 
-function buildLineReportStatus(report) {
+function buildLineReportStatus(report, sync = null) {
+  const syncStatus = buildRemoteSyncStatus(sync);
   const lineSent = Boolean(report?.line?.sent || report?.sent);
   const emailSent = Boolean(report?.email?.sent);
   if (report?.target === "student") {
-    if (lineSent) return "自分だけにLINEテスト送信しました。講師には送っていません。";
+    if (lineSent) return `自分だけにLINEテスト送信しました。講師には送っていません。${syncStatus}`;
     const selfTestReasons = {
       missing_channel_access_token: "LINEトークン未設定のため、自分だけのテスト送信は保留中です。",
       student_not_linked: "本人のLINE連携が未完了のため、自分だけのテスト送信は保留中です。",
       line_send_failed: "自分だけのLINEテスト送信に失敗しました。設定を確認してください。",
       no_records_for_date: `${formatShortDate(getRecordDateKey())}の記録がまだないため、テスト送信していません。`,
     };
-    return selfTestReasons[report?.reason || report?.line?.reason] || "自分だけのLINEテスト送信は保留中です。";
+    return `${selfTestReasons[report?.reason || report?.line?.reason] || "自分だけのLINEテスト送信は保留中です。"}${syncStatus}`;
   }
   // Show whether the LINE report reached only the coach or both the coach and student.
   const selfLineSent = Boolean(report?.line?.recipients?.student?.sent);
   const lineTargetText = selfLineSent ? "講師と自分へLINE" : "講師へLINE";
-  if (lineSent && emailSent) return `${lineTargetText}、講師へメールで日次レポートを送信しました。`;
+  if (lineSent && emailSent) return `${lineTargetText}、講師へメールで日次レポートを送信しました。${syncStatus}`;
   if (lineSent) {
     if (report?.email?.reason === "missing_email_config") {
-      return `${lineTargetText}日次レポートを送信しました。メール送信は未設定です。`;
+      return `${lineTargetText}日次レポートを送信しました。メール送信は未設定です。${syncStatus}`;
     }
     if (report?.email?.reason === "missing_email_to") {
-      return `${lineTargetText}日次レポートを送信しました。メール宛先は未設定です。`;
+      return `${lineTargetText}日次レポートを送信しました。メール宛先は未設定です。${syncStatus}`;
     }
     if (report?.email?.reason === "email_send_failed") {
-      return `${lineTargetText}日次レポートを送信しました。メール送信は失敗しました。`;
+      return `${lineTargetText}日次レポートを送信しました。メール送信は失敗しました。${syncStatus}`;
     }
-    return `${lineTargetText}日次レポートを送信しました。`;
+    return `${lineTargetText}日次レポートを送信しました。${syncStatus}`;
   }
-  if (emailSent) return "講師へメールで日次レポートを送信しました。LINE送信は保留中です。";
+  if (emailSent) return `講師へメールで日次レポートを送信しました。LINE送信は保留中です。${syncStatus}`;
   const reasons = {
     missing_channel_access_token: "LINEトークン未設定のため、日次レポート送信は保留中です。",
     coach_not_linked: "講師のLINE連携が未完了のため、日次レポート送信は保留中です。",
     line_send_failed: "LINE送信に失敗しました。設定と講師連携を確認してください。",
     no_records_for_date: `${formatShortDate(getRecordDateKey())}の記録がまだないため、日次レポートは送信していません。`,
   };
-  return reasons[report?.reason] || "日次レポート送信は保留中です。";
+  return `${reasons[report?.reason] || "日次レポート送信は保留中です。"}${syncStatus}`;
+}
+
+function buildRemoteSyncStatus(sync) {
+  if (!sync) return "";
+  if (sync.ok) return " Render版にも同期済みです。";
+  if (sync.skipped && sync.reason === "remote_sync_not_configured") return "";
+  return " Render版への同期は未確認です。";
 }
 
 function buildReportSendTargetText(target = "coach_and_student") {
@@ -2816,7 +2825,7 @@ async function handleRecordEditSubmit(event) {
     applyEditedRecordsLocally(fromDate, toDate, editedRecords);
     closeRecordEditModal();
     render();
-    const message = `${formatShortDate(toDate)}の報告内容を更新しました。LINEは送信していません。`;
+    const message = `${formatShortDate(toDate)}の報告内容を更新しました。LINEは送信していません。${buildRemoteSyncStatus(result.sync)}`;
     elements.lineReportStatus.textContent = `${message}必要な場合は、この日のレポートを再送してください。`;
     setRecordSaveStatus(message, "success");
 

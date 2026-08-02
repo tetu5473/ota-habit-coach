@@ -10,6 +10,7 @@ const port = Number(env.PORT || 8001);
 const dataDir = resolve(rootDir, env.DATA_DIR || "data");
 const dbPath = join(dataDir, "habit-coach-db.json");
 const weeklyReportDir = join(dataDir, "weekly-reports");
+const remoteSyncBaseUrl = getRemoteSyncBaseUrl();
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -57,6 +58,8 @@ async function handleApi(request, response, url) {
       emailConfigured: Boolean(getReportEmailTo() && (env.GOOGLE_SCRIPT_EMAIL_WEBHOOK_URL || (env.RESEND_API_KEY && env.EMAIL_FROM))),
       emailToConfigured: Boolean(getReportEmailTo()),
       webhookUrl: `${env.APP_BASE_URL || `http://localhost:${port}`}/api/line/webhook`,
+      remoteSyncConfigured: Boolean(remoteSyncBaseUrl),
+      remoteSyncUrl: remoteSyncBaseUrl || "",
     });
     return;
   }
@@ -99,9 +102,11 @@ async function handleApi(request, response, url) {
   if (request.method === "DELETE" && url.pathname === "/api/records") {
     const body = await readJsonBody(request);
     const deleted = await deleteDailyRecord(body.date, body.habitId);
+    const sync = body.syncOnly ? null : await syncDeleteRecordToRemote(body.date, body.habitId);
     sendJson(response, 200, {
       ok: true,
       deleted,
+      sync,
     });
     return;
   }
@@ -109,9 +114,11 @@ async function handleApi(request, response, url) {
   if (request.method === "PATCH" && url.pathname === "/api/records/date") {
     const body = await readJsonBody(request);
     const movedRecord = await moveDailyRecordDate(body.fromDate, body.toDate, body.habitId);
+    const sync = body.syncOnly ? null : await syncMovedRecordToRemote(body.fromDate, movedRecord);
     sendJson(response, 200, {
       ok: true,
       record: movedRecord,
+      sync,
     });
     return;
   }
@@ -126,9 +133,11 @@ async function handleApi(request, response, url) {
       sendJson(response, 404, { error: "records_not_found" });
       return;
     }
+    const sync = body.syncOnly ? null : await syncUpdatedRecordsToRemote(body.fromDate, updatedRecords);
     sendJson(response, 200, {
       ok: true,
       records: updatedRecords,
+      sync,
     });
     return;
   }
@@ -136,14 +145,18 @@ async function handleApi(request, response, url) {
   if (request.method === "POST" && url.pathname === "/api/records") {
     const body = await readJsonBody(request);
     const savedRecord = await saveDailyRecord(body);
-    const reportResult = await sendDailyReport(savedRecord, {
-      target: body.reportTarget,
-      style: body.reportStyle,
-    });
+    const sync = body.syncOnly ? null : await syncRecordsToRemote([savedRecord]);
+    const reportResult = body.reportTarget === "none" || body.syncOnly
+      ? { sent: false, reason: body.syncOnly ? "sync_only" : "save_only" }
+      : await sendDailyReport(savedRecord, {
+        target: body.reportTarget,
+        style: body.reportStyle,
+      });
     sendJson(response, 200, {
       ok: true,
       record: savedRecord,
       report: reportResult,
+      sync,
     });
     return;
   }
@@ -151,8 +164,9 @@ async function handleApi(request, response, url) {
   if (request.method === "POST" && url.pathname === "/api/records/bulk") {
     const body = await readJsonBody(request);
     const savedRecords = await saveDailyRecords(Array.isArray(body.records) ? body.records : []);
-    const reportResult = body.reportTarget === "none"
-      ? { sent: false, reason: "save_only" }
+    const sync = body.syncOnly ? null : await syncRecordsToRemote(savedRecords);
+    const reportResult = body.reportTarget === "none" || body.syncOnly
+      ? { sent: false, reason: body.syncOnly ? "sync_only" : "save_only" }
       : savedRecords.length
       ? await sendDailyReportForDate(savedRecords[0].date, {
         target: body.reportTarget,
@@ -163,6 +177,18 @@ async function handleApi(request, response, url) {
       ok: true,
       records: savedRecords,
       report: reportResult,
+      sync,
+    });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/sync/render") {
+    const db = await readDb();
+    const sync = await syncAllRecordsToRemote(db.dailyRecords || []);
+    sendJson(response, 200, {
+      ok: sync.ok,
+      sync,
+      recordCount: db.dailyRecords?.length || 0,
     });
     return;
   }
@@ -426,6 +452,148 @@ async function updateDailyRecords(fromDate, records) {
   db.dailyRecords.push(...updatedRecords);
   await writeDb(db);
   return updatedRecords;
+}
+
+function getRemoteSyncBaseUrl() {
+  const configuredUrl = env.REMOTE_SYNC_BASE_URL || env.RENDER_SYNC_BASE_URL || env.SYNC_TARGET_BASE_URL || "";
+  const defaultLocalSyncUrl = Number(env.PORT || 8001) === 8001 ? "https://ota-habit-coach.onrender.com" : "";
+  const rawUrl = configuredUrl || defaultLocalSyncUrl;
+  if (!rawUrl) return "";
+
+  const normalizedUrl = rawUrl.replace(/\/+$/, "");
+  const appBaseUrl = (env.APP_BASE_URL || "").replace(/\/+$/, "");
+  if (appBaseUrl && appBaseUrl === normalizedUrl && Number(env.PORT || 8001) !== 8001) return "";
+  return normalizedUrl;
+}
+
+async function syncRecordsToRemote(records) {
+  if (!remoteSyncBaseUrl || !records.length) {
+    return { ok: false, skipped: true, reason: records.length ? "remote_sync_not_configured" : "no_records" };
+  }
+
+  try {
+    const response = await fetch(`${remoteSyncBaseUrl}/api/records/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        syncOnly: true,
+        reportTarget: "none",
+        records,
+      }),
+    });
+    return {
+      ok: response.ok,
+      status: response.status,
+      target: remoteSyncBaseUrl,
+      recordCount: records.length,
+    };
+  } catch (error) {
+    console.error("Remote record sync failed:", error);
+    return {
+      ok: false,
+      target: remoteSyncBaseUrl,
+      reason: "remote_sync_failed",
+      message: error.message,
+    };
+  }
+}
+
+async function syncDeleteRecordToRemote(date, habitId) {
+  if (!remoteSyncBaseUrl || !date || !habitId) {
+    return { ok: false, skipped: true, reason: remoteSyncBaseUrl ? "missing_record_key" : "remote_sync_not_configured" };
+  }
+
+  try {
+    const response = await fetch(`${remoteSyncBaseUrl}/api/records`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ syncOnly: true, date, habitId }),
+    });
+    return {
+      ok: response.ok,
+      status: response.status,
+      target: remoteSyncBaseUrl,
+      date,
+      habitId,
+    };
+  } catch (error) {
+    console.error("Remote record delete sync failed:", error);
+    return {
+      ok: false,
+      target: remoteSyncBaseUrl,
+      reason: "remote_delete_sync_failed",
+      message: error.message,
+    };
+  }
+}
+
+async function syncMovedRecordToRemote(fromDate, movedRecord) {
+  if (!movedRecord) return { ok: false, skipped: true, reason: "record_not_found" };
+  const deleteResult = await syncDeleteRecordToRemote(fromDate, movedRecord.habitId);
+  const saveResult = await syncRecordsToRemote([movedRecord]);
+  return {
+    ok: Boolean(deleteResult.ok && saveResult.ok),
+    delete: deleteResult,
+    save: saveResult,
+  };
+}
+
+async function syncUpdatedRecordsToRemote(fromDate, updatedRecords) {
+  if (!updatedRecords.length) return { ok: false, skipped: true, reason: "no_records" };
+  const deleteResults = await Promise.all(
+    updatedRecords
+      .filter((record) => record.date !== fromDate)
+      .map((record) => syncDeleteRecordToRemote(fromDate, record.habitId)),
+  );
+  const saveResult = await syncRecordsToRemote(updatedRecords);
+  return {
+    ok: saveResult.ok && deleteResults.every((result) => result.ok || result.skipped),
+    deletedOldRecords: deleteResults,
+    save: saveResult,
+  };
+}
+
+async function syncAllRecordsToRemote(localRecords) {
+  if (!remoteSyncBaseUrl) return { ok: false, skipped: true, reason: "remote_sync_not_configured" };
+  const saveResult = await syncRecordsToRemote(localRecords);
+
+  try {
+    const response = await fetch(`${remoteSyncBaseUrl}/api/records`);
+    if (!response.ok) {
+      return {
+        ok: saveResult.ok,
+        save: saveResult,
+        remoteCleanup: { ok: false, status: response.status },
+      };
+    }
+    const remoteRecords = await response.json();
+    const localKeys = new Set(localRecords.map((record) => `${record.date}:${record.habitId}`));
+    const recordsToDelete = (remoteRecords.records || []).filter(
+      (record) => record.date && record.habitId && !localKeys.has(`${record.date}:${record.habitId}`),
+    );
+    const deleteResults = await Promise.all(
+      recordsToDelete.map((record) => syncDeleteRecordToRemote(record.date, record.habitId)),
+    );
+    return {
+      ok: saveResult.ok && deleteResults.every((result) => result.ok || result.skipped),
+      save: saveResult,
+      remoteCleanup: {
+        ok: deleteResults.every((result) => result.ok || result.skipped),
+        deletedCount: deleteResults.filter((result) => result.ok).length,
+      },
+    };
+  } catch (error) {
+    console.error("Remote full sync cleanup failed:", error);
+    return {
+      ok: saveResult.ok,
+      save: saveResult,
+      remoteCleanup: {
+        ok: false,
+        reason: "remote_cleanup_failed",
+        message: error.message,
+      },
+    };
+  }
 }
 
 async function sendDailyReport(record, options = {}) {
