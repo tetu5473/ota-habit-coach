@@ -14,6 +14,8 @@ services:
         sync: false
       - key: REMOTE_SYNC_BASE_URL
         sync: false
+      - key: PERSISTENT_STORE_WEBHOOK_URL
+        sync: false
       - key: STUDENT_LINK_CODE
         sync: false
       - key: COACH_LINK_CODE

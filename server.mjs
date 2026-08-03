@@ -11,6 +11,8 @@ const dataDir = resolve(rootDir, env.DATA_DIR || "data");
 const dbPath = join(dataDir, "habit-coach-db.json");
 const weeklyReportDir = join(dataDir, "weekly-reports");
 const remoteSyncBaseUrl = getRemoteSyncBaseUrl();
+const persistentStoreWebhookUrl = env.PERSISTENT_STORE_WEBHOOK_URL || "";
+let persistentBackupEnabled = false;
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -29,6 +31,7 @@ function normalizeNoteTone(value) {
 }
 
 await ensureDb();
+persistentBackupEnabled = true;
 
 const server = createServer(async (request, response) => {
   try {
@@ -60,6 +63,7 @@ async function handleApi(request, response, url) {
       webhookUrl: `${env.APP_BASE_URL || `http://localhost:${port}`}/api/line/webhook`,
       remoteSyncConfigured: Boolean(remoteSyncBaseUrl),
       remoteSyncUrl: remoteSyncBaseUrl || "",
+      persistentStoreConfigured: Boolean(persistentStoreWebhookUrl),
     });
     return;
   }
@@ -190,6 +194,23 @@ async function handleApi(request, response, url) {
       sync,
       recordCount: db.dailyRecords?.length || 0,
     });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/persistence/backup") {
+    const db = await readDb();
+    const backup = await backupDbToPersistentStore(db);
+    sendJson(response, backup.ok || backup.skipped ? 200 : 502, {
+      ok: backup.ok,
+      backup,
+      recordCount: db.dailyRecords?.length || 0,
+    });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/persistence/restore") {
+    const result = await restoreDbFromPersistentStore();
+    sendJson(response, result.ok || result.skipped ? 200 : 502, result);
     return;
   }
 
@@ -1354,7 +1375,6 @@ async function ensureDb() {
   await mkdir(weeklyReportDir, { recursive: true });
   try {
     await stat(dbPath);
-    await hydrateDbFromEnv();
   } catch {
     await writeDb({
       users: {
@@ -1379,6 +1399,8 @@ async function ensureDb() {
       reportLogs: [],
     });
   }
+  await restoreDbFromPersistentStore();
+  await hydrateDbFromEnv();
 }
 
 async function hydrateDbFromEnv() {
@@ -1416,12 +1438,203 @@ async function hydrateDbFromEnv() {
   if (changed) await writeDb(db);
 }
 
+async function restoreDbFromPersistentStore() {
+  if (!persistentStoreWebhookUrl) {
+    return { ok: false, skipped: true, reason: "persistent_store_not_configured" };
+  }
+
+  try {
+    const response = await fetch(persistentStoreWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        app: "ota-habit-coach",
+        action: "load",
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok && result.ok !== false && !result.db) {
+      return {
+        ok: false,
+        skipped: true,
+        status: response.status,
+        reason: result.reason || "empty_store",
+      };
+    }
+    if (!response.ok || result.ok === false) {
+      return {
+        ok: false,
+        status: response.status,
+        reason: result.reason || result.error || "persistent_store_load_failed",
+      };
+    }
+
+    const currentDb = await readDb();
+    const mergedDb = mergeDb(currentDb, result.db);
+    const currentCount = currentDb.dailyRecords?.length || 0;
+    const mergedCount = mergedDb.dailyRecords?.length || 0;
+    const changed = JSON.stringify(currentDb) !== JSON.stringify(mergedDb);
+    if (changed) {
+      await writeDb(mergedDb);
+    }
+
+    return {
+      ok: true,
+      restored: changed,
+      recordCount: mergedCount,
+      previousRecordCount: currentCount,
+      sourceUpdatedAt: result.updatedAt || "",
+    };
+  } catch (error) {
+    console.error("Persistent store restore failed:", error);
+    return {
+      ok: false,
+      reason: "persistent_store_restore_failed",
+      message: error.message,
+    };
+  }
+}
+
+async function backupDbToPersistentStore(db) {
+  if (!persistentStoreWebhookUrl) {
+    return { ok: false, skipped: true, reason: "persistent_store_not_configured" };
+  }
+
+  try {
+    const response = await fetch(persistentStoreWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        app: "ota-habit-coach",
+        action: "save",
+        updatedAt: new Date().toISOString(),
+        db,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    return {
+      ok: response.ok && result.ok !== false,
+      status: response.status,
+      recordCount: db.dailyRecords?.length || 0,
+      updatedAt: result.updatedAt || "",
+      reason: result.reason || result.error || "",
+    };
+  } catch (error) {
+    console.error("Persistent store backup failed:", error);
+    return {
+      ok: false,
+      reason: "persistent_store_backup_failed",
+      message: error.message,
+    };
+  }
+}
+
+function mergeDb(currentDb, storedDb) {
+  const current = normalizeDb(currentDb);
+  const stored = normalizeDb(storedDb);
+  return {
+    users: mergeUsers(current.users, stored.users),
+    coachLinks: mergeUniqueByJson(current.coachLinks, stored.coachLinks),
+    dailyRecords: mergeDailyRecords(current.dailyRecords, stored.dailyRecords),
+    weeklyReports: mergeUniqueByKey(current.weeklyReports, stored.weeklyReports, (report) => report.id || report.url || report.createdAt || JSON.stringify(report)),
+    reportLogs: mergeUniqueByKey(current.reportLogs, stored.reportLogs, (log) => log.id || `${log.date || ""}:${log.target || ""}:${log.createdAt || ""}:${log.text || ""}`),
+  };
+}
+
+function normalizeDb(db = {}) {
+  return {
+    users: {
+      student: {
+        id: "student",
+        name: "太田さん",
+        role: "student",
+        lineUserId: null,
+        linkCode: env.STUDENT_LINK_CODE || createLinkCode("OTA"),
+        ...(db.users?.student || {}),
+      },
+      coach: {
+        id: "coach",
+        name: "講師",
+        role: "coach",
+        lineUserId: null,
+        linkCode: env.COACH_LINK_CODE || createLinkCode("COACH"),
+        ...(db.users?.coach || {}),
+      },
+    },
+    coachLinks: Array.isArray(db.coachLinks) ? db.coachLinks : [{ studentUserId: "student", coachUserId: "coach" }],
+    dailyRecords: Array.isArray(db.dailyRecords) ? db.dailyRecords : [],
+    weeklyReports: Array.isArray(db.weeklyReports) ? db.weeklyReports : [],
+    reportLogs: Array.isArray(db.reportLogs) ? db.reportLogs : [],
+  };
+}
+
+function mergeUsers(currentUsers, storedUsers) {
+  return {
+    student: mergeUser(currentUsers.student, storedUsers.student),
+    coach: mergeUser(currentUsers.coach, storedUsers.coach),
+  };
+}
+
+function mergeUser(currentUser, storedUser) {
+  return {
+    ...storedUser,
+    ...currentUser,
+    lineUserId: currentUser.lineUserId || storedUser.lineUserId || null,
+    linkedAt: currentUser.linkedAt || storedUser.linkedAt || undefined,
+    linkCode: currentUser.linkCode || storedUser.linkCode,
+  };
+}
+
+function mergeDailyRecords(currentRecords, storedRecords) {
+  const recordsByKey = new Map();
+  [...storedRecords, ...currentRecords].forEach((record) => {
+    if (!record?.date || !record?.habitId) return;
+    const key = `${record.userId || "student"}:${record.date}:${record.habitId}`;
+    const previous = recordsByKey.get(key);
+    if (!previous || compareRecordFreshness(record, previous) >= 0) {
+      recordsByKey.set(key, record);
+    }
+  });
+  return Array.from(recordsByKey.values()).sort((left, right) => {
+    const dateOrder = left.date.localeCompare(right.date);
+    if (dateOrder) return dateOrder;
+    return String(left.habitId).localeCompare(String(right.habitId));
+  });
+}
+
+function compareRecordFreshness(left, right) {
+  return getRecordTimestamp(left) - getRecordTimestamp(right);
+}
+
+function getRecordTimestamp(record) {
+  return Date.parse(record.updatedAt || record.createdAt || record.date || "") || 0;
+}
+
+function mergeUniqueByJson(currentItems, storedItems) {
+  return mergeUniqueByKey(currentItems, storedItems, (item) => JSON.stringify(item));
+}
+
+function mergeUniqueByKey(currentItems, storedItems, getKey) {
+  const itemsByKey = new Map();
+  [...storedItems, ...currentItems].forEach((item) => {
+    const key = getKey(item);
+    if (!key) return;
+    itemsByKey.set(key, item);
+  });
+  return Array.from(itemsByKey.values());
+}
+
 async function readDb() {
   return JSON.parse(await readFile(dbPath, "utf8"));
 }
 
 async function writeDb(db) {
   await writeFile(dbPath, `${JSON.stringify(db, null, 2)}\n`);
+  if (persistentBackupEnabled) {
+    await backupDbToPersistentStore(db);
+  }
 }
 
 async function readJsonBody(request) {
