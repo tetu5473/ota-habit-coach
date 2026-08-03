@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="太田の習慣コーチについて、ここ1週間で行った制作内容を講師向けにまとめた報告メモです。">
-    <title>太田の習慣コーチ 1週間の制作メモ</title>
+    <meta name="description" content="太田の習慣コーチについて、今週行った制作内容を講師向けにまとめた報告メモです。">
+    <title>太田の習慣コーチ 今週の制作報告</title>
     <style>
       * {
         box-sizing: border-box;
@@ -77,6 +77,15 @@
         font-weight: 700;
       }
 
+      code {
+        padding: 2px 5px;
+        border-radius: 4px;
+        background: #f2f5f8;
+        color: #27445f;
+        font-family: Menlo, Consolas, monospace;
+        font-size: 0.9em;
+      }
+
       .lead {
         margin: 22px 0 0;
         padding: 20px 22px;
@@ -129,6 +138,32 @@
 
       .card p {
         margin: 0;
+      }
+
+      .status-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+
+      .status-item {
+        padding: 14px;
+        border: 1px solid #d8dee6;
+        border-radius: 8px;
+        background: #f8fbf9;
+        text-align: center;
+      }
+
+      .status-item strong {
+        display: block;
+        color: #17476d;
+        font-size: 22px;
+      }
+
+      .status-item span {
+        color: #4f5f70;
+        font-size: 15px;
+        font-weight: 700;
       }
 
       ul,
@@ -221,7 +256,8 @@
 
         .summary-grid,
         .pdca-grid,
-        .week-grid {
+        .week-grid,
+        .status-row {
           grid-template-columns: 1fr;
         }
 
@@ -245,31 +281,53 @@
     <main class="page">
       <header>
         <span>学習・制作報告</span>
-        <h1>太田の習慣コーチ 1週間の制作メモ</h1>
+        <h1>太田の習慣コーチ 今週の制作報告</h1>
       </header>
 
       <section class="lead" aria-label="報告の概要">
         <strong>報告する内容</strong>
         <p>
-          この1週間は、太田の習慣コーチを「外出先でも使える状態」と「自分で安全にテストできる状態」に近づけました。
-          特に、Render公開版、LINE連携、テスト送信、カレンダー表示を中心に改善しました。
+          今週は、太田の習慣コーチを「報告しやすい」「あとから直しやすい」「ローカルとRenderで同じ記録を見られる」
+          状態に近づけました。特に、LINE報告文の見やすさ、保存済み記録の編集、Render版への同期確認を重点的に進めました。
         </p>
+      </section>
+
+      <section class="section" aria-label="進捗">
+        <h2>現在の確認状況</h2>
+        <div class="status-row">
+          <div class="status-item">
+            <strong>130件</strong>
+            <span>保存済み記録</span>
+          </div>
+          <div class="status-item">
+            <strong>3件</strong>
+            <span>8月1日の記録</span>
+          </div>
+          <div class="status-item">
+            <strong>5件</strong>
+            <span>自動テスト合格</span>
+          </div>
+          <div class="status-item">
+            <strong>同期済み</strong>
+            <span>ローカル / Render</span>
+          </div>
+        </div>
       </section>
 
       <section class="section" aria-label="一週間でできたこと">
         <h2>この1週間でやったこと</h2>
         <div class="summary-grid">
           <div class="card">
-            <strong>LINE連携を安定化</strong>
-            <p>本人と講師のLINEユーザーIDをRender環境変数に固定し、再デプロイ後も連携が戻るようにしました。</p>
+            <strong>報告文を見やすくした</strong>
+            <p>短め・標準・詳しめに加えて、講師向けに超要約の報告テンプレートを使えるようにしました。</p>
           </div>
           <div class="card">
-            <strong>自分だけでテスト可能に</strong>
-            <p>講師に通知せず、自分のLINEだけに送れるテスト送信機能を追加しました。</p>
+            <strong>保存済み記録を編集しやすくした</strong>
+            <p>過去の報告を開いて、メモや日付を修正し、必要に応じて再送できる流れを整えました。</p>
           </div>
           <div class="card">
-            <strong>画面表示を改善</strong>
-            <p>記録カレンダーを日曜始まりに変更し、普段見慣れた曜日順で確認できるようにしました。</p>
+            <strong>Render版との同期を確認した</strong>
+            <p>ローカルに残っている記録をRenderにも同期し、両方で同じ件数になることを確認しました。</p>
           </div>
         </div>
       </section>
@@ -278,56 +336,56 @@
         <h2>作業内容をわかりやすくまとめると</h2>
         <div class="week-grid">
           <div class="card">
-            <h3>1. Render公開版の確認</h3>
+            <h3>1. LINE報告文の改善</h3>
             <ul>
-              <li>公開URLで太田の習慣コーチを開ける状態を確認しました。</li>
-              <li>スマホや外出先でも使うため、ローカルだけではなくRender側の設定を進めました。</li>
-              <li>LINE DevelopersのWebhookをRender用URLに変更し、検証が成功することを確認しました。</li>
+              <li>報告文を短め・標準・詳しめ・超要約で切り替えられるようにしました。</li>
+              <li>送信前に、LINEに届く文面を確認しやすいプレビューを整えました。</li>
+              <li>講師に報告する時に、長すぎず要点が伝わる形を意識しました。</li>
             </ul>
           </div>
 
           <div class="card">
-            <h3>2. LINE連携の原因確認</h3>
+            <h3>2. 記録入力の使いやすさ改善</h3>
             <ul>
-              <li>講師連携がうまく見えない原因を、Render側の連携状態から確認しました。</li>
-              <li>LINEからRenderに届いているか分かるよう、受信ログを追加しました。</li>
-              <li>本人・講師の連携状態をAPIで確認できるようにし、状態を切り分けました。</li>
+              <li>今日のまとめ欄やメモの色分けを追加し、報告内容の意味が分かりやすくなるようにしました。</li>
+              <li>過去に入力したメモを再利用しやすくし、毎回ゼロから書かなくてよい形にしました。</li>
+              <li>送信結果が分かりやすくなるよう、確認表示を強化しました。</li>
             </ul>
           </div>
 
           <div class="card">
-            <h3>3. LINE連携を消えにくくした</h3>
+            <h3>3. 保存済み記録の編集</h3>
             <ul>
-              <li>Renderの再デプロイで連携情報が消える可能性を確認しました。</li>
-              <li>本人用の <code>STUDENT_LINE_USER_ID</code> を追加しました。</li>
-              <li>講師用の <code>COACH_LINE_USER_ID</code> を正しい値に修正しました。</li>
+              <li>カレンダーや履歴から保存済み記録を開き、内容を編集できるようにしました。</li>
+              <li>8月2日に入っていた記録を、本来の8月1日の記録として修正しました。</li>
+              <li>「変更だけ保存」「自分だけに再送」「講師と自分へ再送」のボタンが確実に動くように修正しました。</li>
             </ul>
           </div>
 
           <div class="card">
-            <h3>4. 自分だけにテスト送信</h3>
+            <h3>4. ローカルとRenderの同期</h3>
             <ul>
-              <li>講師に送らず、自分だけにLINEレポートを送れるボタンを追加しました。</li>
-              <li>送信後に「講師には送っていない」ことがアプリ画面で分かるようにしました。</li>
-              <li>実際に自分のLINEへ届くことを確認しました。</li>
+              <li>ローカルに保存した記録をRenderにも同期する処理を追加しました。</li>
+              <li>Render側の記録が0件になった時も、ローカルから再同期して復旧できることを確認しました。</li>
+              <li>ローカルとRenderの両方で、全130件の記録が一致していることを確認しました。</li>
             </ul>
           </div>
 
           <div class="card">
-            <h3>5. カレンダー表示の修正</h3>
+            <h3>5. 表示と操作の調整</h3>
             <ul>
-              <li>カレンダーの曜日を日曜日始まりに変更しました。</li>
-              <li>曜日表示だけでなく、日付の並びも日曜始まりに修正しました。</li>
-              <li>Render公開版にも反映されていることを確認しました。</li>
+              <li>筋トレ・睡眠では不要な学習時間入力を出さないように整理しました。</li>
+              <li>毎日の目標を変更した時に、その内容が次回以降にも反映されやすい形にしました。</li>
+              <li>画面の移動や確認がしやすいよう、細かい表示を調整しました。</li>
             </ul>
           </div>
 
           <div class="card">
-            <h3>6. テストと記録</h3>
+            <h3>6. テストと公開反映</h3>
             <ul>
               <li>修正後に自動テストを実行し、5件すべて合格しました。</li>
-              <li>GitHubへ変更を反映し、Render公開版にも反映しました。</li>
-              <li>今後の設定が分かるよう、READMEと環境変数の見本も更新しました。</li>
+              <li>GitHubへ変更を反映し、Render公開版にも反映されるようにしました。</li>
+              <li>Render再起動後に記録が消える問題を確認し、次の改善点として整理しました。</li>
             </ul>
           </div>
         </div>
@@ -336,9 +394,9 @@
       <section class="section" aria-label="できるようになったこと">
         <h2>できるようになったこと</h2>
         <div class="note-box">
-          <p>太田の習慣コーチをRender上で開き、LINE連携済みの状態で使えるようになりました。</p>
-          <p>講師に毎回テスト通知を送らなくても、自分だけにLINE送信して確認できます。</p>
-          <p>問題がなければ、通常の「保存してLINE送信」で講師と自分の両方に報告できます。</p>
+          <p>過去の記録をあとから修正し、日付を間違えた場合でも正しい日に直せるようになりました。</p>
+          <p>ローカルとRenderの記録件数を確認しながら、両方を同じ状態に戻せるようになりました。</p>
+          <p>LINE報告文は、講師が読みやすい長さに近づけられるようになりました。</p>
         </div>
       </section>
 
@@ -347,19 +405,19 @@
         <div class="pdca-grid">
           <div class="card">
             <strong>P：計画</strong>
-            <p>太田の習慣コーチを、スマホや外出先でも使える公開アプリに近づける。LINE報告も、講師に迷惑をかけず自分で確認できる状態にする。</p>
+            <p>太田の習慣コーチを、日々の記録と講師への報告に使いやすい形へ改善する。特に、報告文の見やすさ、過去記録の編集、Render版との同期を重点的に進める。</p>
           </div>
           <div class="card">
             <strong>D：実行</strong>
-            <p>Render公開、LINE連携確認、環境変数固定、自分だけテスト送信、カレンダー日曜始まりの修正を行った。変更後はGitHubとRenderへ反映した。</p>
+            <p>報告テンプレート、送信前プレビュー、保存済み記録の編集、日付変更、ローカルからRenderへの同期機能を実装した。8月2日の記録も8月1日に修正した。</p>
           </div>
           <div class="card">
             <strong>C：確認</strong>
-            <p>本人・講師のLINE連携がRender上で連携済みになることを確認した。自分だけテスト送信では、自分のLINEに届き、講師には送られていないことも確認した。</p>
+            <p>ローカルとRenderの両方で、全130件の記録が一致していることを確認した。8月1日は3件、8月2日は0件になっている。自動テストも5件すべて合格した。</p>
           </div>
           <div class="card">
             <strong>A：改善</strong>
-            <p>次回は通常の本番送信を確認する。送信前の文面、講師に届く内容、カレンダーや履歴から過去記録を見返す流れをさらに確認する。</p>
+            <p>Renderは再起動や再デプロイ時に保存データが消える可能性があるため、次回はGoogleスプレッドシートや外部DBなど、消えない保存先への切り替えを検討する。</p>
           </div>
         </div>
       </section>
@@ -367,10 +425,10 @@
       <section class="section" aria-label="今後の改善">
         <h2>今後の改善</h2>
         <ol>
-          <li>通常の「保存してLINE送信」で、講師と自分の両方に届くか確認する。</li>
-          <li>LINEに届く報告文が読みやすいか、自分だけテスト送信で確認する。</li>
-          <li>履歴やカレンダーから過去の記録を見返し、必要なら編集しやすくする。</li>
-          <li>長期的には、記録データをさらに安定して保存できる方法も検討する。</li>
+          <li>Renderが再起動しても記録が消えないよう、永続保存先を用意する。</li>
+          <li>ローカルとRenderの同期状態を、画面上でもさらに分かりやすく表示する。</li>
+          <li>LINE報告文を送る前に、講師向けに読みやすい形か確認できる流れを強化する。</li>
+          <li>過去記録の編集後に、必要な時だけ安全に再送できる流れをさらに確認する。</li>
         </ol>
         <div class="links">
           <a href="https://ota-habit-coach.onrender.com" target="_blank" rel="noopener noreferrer">公開版の太田の習慣コーチを開く</a>
@@ -379,7 +437,7 @@
       </section>
 
       <footer>
-        <p>作成日：2026年7月26日 / 太田の習慣コーチ 制作報告</p>
+        <p>作成日：2026年8月3日 / 太田の習慣コーチ 制作報告</p>
       </footer>
     </main>
   </body>
