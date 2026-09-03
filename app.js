@@ -1,3 +1,5 @@
+// app.js【修正】日ごとの習慣記録と、保存前の入力途中データをブラウザ内に保持する画面処理です。
+// 日付を切り替えても入力途中の内容を復元できるようにします。
 const STORAGE_KEY = "otaHabitCoach:v2";
 const TEST_CHECKLIST_STORAGE_KEY = "otaHabitCoach:testChecklist:v1";
 const API_BASE = "";
@@ -325,6 +327,7 @@ function init() {
   populateHabitSelects();
   elements.dailyForm.addEventListener("submit", handleDailyRecord);
   elements.multiHabitRecords.addEventListener("input", handleMultiHabitRecordsInput);
+  elements.multiHabitRecords.addEventListener("change", handleMultiHabitRecordsChange);
   elements.multiHabitRecords.addEventListener("focusout", handleMultiHabitRecordsFocusOut);
   elements.multiHabitRecords.addEventListener("click", handleMultiHabitRecordsClick);
   elements.multiHabitRecords.addEventListener("submit", handleMultiHabitRecordsSubmit);
@@ -754,6 +757,7 @@ function applyVoiceTranscript(target, transcript) {
   if (scoped.card && scoped.kind === "note") {
     const textarea = scoped.card.querySelector(".multi-note");
     textarea.value = limitToMaxLength(textarea, appendVoiceText(textarea.value, transcript));
+    saveMultiHabitRecordDraft(scoped.card);
     elements.voiceStatus.textContent = `${getHabitVoiceLabel(scoped.card)}のメモに追加しました。続けて話せます。`;
     return;
   }
@@ -801,6 +805,7 @@ function applyVoiceTranscript(target, transcript) {
   if (scoped.card && scoped.kind === "status") {
     const statusInput = scoped.card.querySelector(`input[name="status-${CSS.escape(scoped.habitId)}"][value="${matchedValue}"]`);
     if (statusInput) statusInput.checked = true;
+    saveMultiHabitRecordDraft(scoped.card);
     elements.voiceStatus.textContent = `${getHabitVoiceLabel(scoped.card)}の結果を「${statusLabels[matchedValue]}」にしました。`;
     return;
   }
@@ -960,6 +965,7 @@ function loadState() {
     plans: [],
     checkIns: [],
     tomorrowActions: [],
+    drafts: [],
     settings: {
       dayCondition: "normal",
       recoveryModeDate: null,
@@ -977,6 +983,7 @@ function loadState() {
       plans: Array.isArray(saved.plans) ? saved.plans : [],
       checkIns: Array.isArray(saved.checkIns) ? saved.checkIns : [],
       tomorrowActions: Array.isArray(saved.tomorrowActions) ? saved.tomorrowActions : [],
+      drafts: Array.isArray(saved.drafts) ? saved.drafts : [],
       settings: {
         ...fallback.settings,
         ...(saved.settings || {}),
@@ -1083,18 +1090,25 @@ function renderMultiHabitRecordForms() {
     .filter((habit) => habit.active)
     .forEach((habit, index) => {
       const savedCheckIn = getCheckIn(recordDateKey, habit.id);
+      const draftCheckIn = getDraftCheckIn(recordDateKey, habit.id);
+      const displayedCheckIn = draftCheckIn || savedCheckIn;
       const savedPlan = getPlan(recordDateKey, habit.id);
       const plannedMinimumAction = savedPlan?.plannedMinimumAction || getAdaptiveMinimum(habit.id);
-      const isOpen = index === 0 || Boolean(savedCheckIn);
+      const isOpen = index === 0 || Boolean(displayedCheckIn);
       const card = document.createElement("article");
       card.className = "multi-habit-card";
       card.classList.toggle("is-collapsed", !isOpen);
       card.dataset.habitId = habit.id;
       card.dataset.category = habit.category;
-      const status = savedCheckIn?.status || "done";
-      const mood = savedCheckIn?.mood || "good";
-      const note = savedCheckIn?.note || "";
-      const noteTone = normalizeNoteTone(savedCheckIn?.noteTone);
+      const status = displayedCheckIn?.status || "done";
+      const mood = displayedCheckIn?.mood || "good";
+      const note = displayedCheckIn?.note || "";
+      const noteTone = normalizeNoteTone(displayedCheckIn?.noteTone);
+      const recordStatusLabel = draftCheckIn
+        ? "入力中"
+        : savedCheckIn
+          ? statusLabels[savedCheckIn.status]
+          : "未保存";
       card.innerHTML = `
         <button class="multi-habit-card-header" type="button" aria-expanded="${isOpen}" aria-controls="record-panel-${escapeHtml(habit.id)}">
           <div>
@@ -1103,7 +1117,7 @@ function renderMultiHabitRecordForms() {
             <p class="multi-habit-minimum">${escapeHtml(buildMinimumSuggestionText(habit, plannedMinimumAction))}</p>
           </div>
           <span class="multi-habit-header-side">
-            <span class="status-badge ${savedCheckIn ? (savedCheckIn.status === "missed" ? "missed" : "done") : "unsaved"}">${escapeHtml(savedCheckIn ? statusLabels[savedCheckIn.status] : "未保存")}</span>
+            <span class="status-badge ${savedCheckIn && !draftCheckIn ? (savedCheckIn.status === "missed" ? "missed" : "done") : "unsaved"}">${escapeHtml(recordStatusLabel)}</span>
             <span class="summary-hint multi-habit-toggle-label">${isOpen ? "閉じる" : "開く"}</span>
           </span>
         </button>
@@ -1136,7 +1150,7 @@ function renderMultiHabitRecordForms() {
               <label><input type="radio" name="status-${escapeHtml(habit.id)}" value="missed" ${status === "missed" ? "checked" : ""}>未達</label>
             </div>
           </fieldset>
-          ${habit.category === "learning" ? buildMultiLearningHtml(savedCheckIn) : ""}
+          ${habit.category === "learning" ? buildMultiLearningHtml(displayedCheckIn) : ""}
           <div class="multi-habit-field multi-habit-full">
             <div class="compact-field-heading">
               <label>ひとことメモ</label>
@@ -1298,17 +1312,20 @@ function handleMultiHabitRecordsInput(event) {
     return;
   }
   if (event.target.matches("input[type='radio'][name^='status-']")) {
+    saveMultiHabitRecordDraft(card);
     updateDailyReportLengthStatus();
     renderReportReadiness();
     return;
   }
   if (event.target.matches(".multi-note")) {
+    saveMultiHabitRecordDraft(card);
     updateNoteSuggestions(card);
     updateDailyReportLengthStatus();
     renderReportReadiness();
     return;
   }
   if (event.target.matches(".multi-note-tone")) {
+    saveMultiHabitRecordDraft(card);
     updateNoteTonePreview(card);
     updateDailyReportLengthStatus();
     renderReportReadiness();
@@ -1317,9 +1334,26 @@ function handleMultiHabitRecordsInput(event) {
   if (card.dataset.category !== "learning") return;
   if (event.target.matches(".learning-start-time, .learning-end-time")) {
     updateMultiLearningDuration(card);
+    saveMultiHabitRecordDraft(card);
     updateDailyReportLengthStatus();
     renderReportReadiness();
   }
+}
+
+function handleMultiHabitRecordsChange(event) {
+  const card = event.target.closest(".multi-habit-card");
+  if (!card) return;
+
+  if (event.target.matches(".multi-note-tone")) {
+    updateNoteTonePreview(card);
+  }
+  if (event.target.matches(".learning-start-time, .learning-end-time")) {
+    updateMultiLearningDuration(card);
+  }
+
+  saveMultiHabitRecordDraft(card);
+  updateDailyReportLengthStatus();
+  renderReportReadiness();
 }
 
 function handleMultiHabitRecordsFocusOut(event) {
@@ -1359,6 +1393,7 @@ function handleMultiHabitRecordsClick(event) {
     list.insertAdjacentHTML("beforeend", buildMultiLearningSessionRow({}, list.children.length + 1));
     updateMultiLearningRemoveButtons(card);
     updateMultiLearningDuration(card);
+    saveMultiHabitRecordDraft(card);
     return;
   }
 
@@ -1372,6 +1407,7 @@ function handleMultiHabitRecordsClick(event) {
   }
   updateMultiLearningRemoveButtons(card);
   updateMultiLearningDuration(card);
+  saveMultiHabitRecordDraft(card);
 }
 
 function updateNoteSuggestions(card) {
@@ -1478,6 +1514,9 @@ function applyNoteSuggestion(button) {
   textarea.focus();
   textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   updateNoteSuggestions(card);
+  saveMultiHabitRecordDraft(card);
+  updateDailyReportLengthStatus();
+  renderReportReadiness();
 }
 
 function handleMultiHabitRecordsSubmit(event) {
@@ -1660,7 +1699,7 @@ function updatePlanInput() {
   const habit = findHabit(elements.habitSelect.value);
   const recordDateKey = getRecordDateKey();
   const savedPlan = getPlan(recordDateKey, habit.id);
-  const savedCheckIn = getCheckIn(recordDateKey, habit.id);
+  const savedCheckIn = getDraftCheckIn(recordDateKey, habit.id) || getCheckIn(recordDateKey, habit.id);
   const suggestedMinimum = getAdaptiveMinimum(habit.id);
   const isLearningHabit = habit.category === "learning";
   elements.learningTimeField.hidden = !isLearningHabit;
@@ -1714,6 +1753,7 @@ function saveHabitRecords(records, options = {}) {
       plannedMinimumAction,
     });
     upsertByDateAndHabit(state.checkIns, checkIn);
+    removeDraftCheckIn(checkIn.date, habit.id);
   });
   saveState();
   if (options.statusMessage) {
@@ -1740,27 +1780,83 @@ function collectMultiHabitRecords(recordDateKey) {
     .map((card) => {
       const habit = findHabit(card.dataset.habitId);
       const plannedMinimumAction = getPlan(recordDateKey, habit.id)?.plannedMinimumAction || getAdaptiveMinimum(habit.id);
-      const learningSessions = habit.category === "learning" ? collectMultiLearningSessions(card) : [];
-      const learningMinutes = habit.category === "learning"
-        ? normalizeLearningMinutes(card.querySelector(".multi-learning-minutes")?.value || "")
-        : "";
-      const checkIn = {
-        date: recordDateKey,
-        habitId: habit.id,
-        status: card.querySelector(`input[name="status-${CSS.escape(habit.id)}"]:checked`)?.value || "done",
-        mood: card.querySelector(".multi-mood")?.value || "good",
-        learningMinutes,
-        learningSessions,
-        learningStartTime: learningSessions[0]?.startTime || "",
-        learningEndTime: learningSessions[0]?.endTime || "",
-        blocker: "",
-        blockerPreset: "",
-        blockerNote: "",
-        note: card.querySelector(".multi-note")?.value.trim() || "",
-        noteTone: normalizeNoteTone(card.querySelector(".multi-note-tone")?.value),
-      };
+      const checkIn = buildMultiHabitCheckIn(card, habit, recordDateKey);
       return { habit, plannedMinimumAction, checkIn };
     });
+}
+
+// NOTE: 日付を変える直前に、画面に残っている未保存の入力だけを日付・習慣ごとに退避する。
+function saveCurrentRecordDrafts() {
+  const recordDateKey = getRecordDateKey();
+  Array.from(elements.multiHabitRecords.querySelectorAll(".multi-habit-card")).forEach((card) => {
+    flushMultiMinimumAutoSave(card);
+    saveMultiHabitRecordDraft(card, recordDateKey, false);
+  });
+  saveState();
+}
+
+function saveMultiHabitRecordDraft(card, recordDateKey = getRecordDateKey(), shouldSaveState = true) {
+  if (!card) return;
+  const habit = findHabit(card.dataset.habitId);
+
+  const draftCheckIn = buildMultiHabitCheckIn(card, habit, recordDateKey);
+  const savedCheckIn = getCheckIn(recordDateKey, habit.id);
+  if (shouldKeepDraftCheckIn(draftCheckIn, savedCheckIn)) {
+    upsertByDateAndHabit(state.drafts, draftCheckIn);
+  } else {
+    removeDraftCheckIn(recordDateKey, habit.id);
+  }
+
+  if (shouldSaveState) saveState();
+}
+
+function buildMultiHabitCheckIn(card, habit, recordDateKey) {
+  const learningSessions = habit.category === "learning" ? collectMultiLearningSessions(card) : [];
+  const learningMinutes = habit.category === "learning"
+    ? normalizeLearningMinutes(card.querySelector(".multi-learning-minutes")?.value || "")
+    : "";
+
+  return {
+    date: recordDateKey,
+    habitId: habit.id,
+    status: card.querySelector(`input[name="status-${CSS.escape(habit.id)}"]:checked`)?.value || "done",
+    mood: card.querySelector(".multi-mood")?.value || "good",
+    learningMinutes,
+    learningSessions,
+    learningStartTime: learningSessions[0]?.startTime || "",
+    learningEndTime: learningSessions[0]?.endTime || "",
+    blocker: "",
+    blockerPreset: "",
+    blockerNote: "",
+    note: card.querySelector(".multi-note")?.value.trim() || "",
+    noteTone: normalizeNoteTone(card.querySelector(".multi-note-tone")?.value),
+  };
+}
+
+function shouldKeepDraftCheckIn(draftCheckIn, savedCheckIn) {
+  if (savedCheckIn) return !hasSameVisibleRecordFields(draftCheckIn, savedCheckIn);
+
+  return draftCheckIn.status !== "done"
+    || draftCheckIn.note !== ""
+    || draftCheckIn.noteTone !== "normal"
+    || draftCheckIn.learningMinutes !== ""
+    || draftCheckIn.learningSessions.length > 0;
+}
+
+function hasSameVisibleRecordFields(leftCheckIn, rightCheckIn) {
+  return leftCheckIn.status === rightCheckIn.status
+    && leftCheckIn.note === rightCheckIn.note
+    && leftCheckIn.noteTone === normalizeNoteTone(rightCheckIn.noteTone)
+    && leftCheckIn.learningMinutes === String(rightCheckIn.learningMinutes || "")
+    && hasSameLearningSessions(leftCheckIn.learningSessions, getLearningSessionsFromCheckIn(rightCheckIn));
+}
+
+function hasSameLearningSessions(leftSessions, rightSessions) {
+  if (leftSessions.length !== rightSessions.length) return false;
+  return leftSessions.every((session, index) => (
+    session.startTime === rightSessions[index].startTime
+      && session.endTime === rightSessions[index].endTime
+  ));
 }
 
 async function loadLineLinkStatus() {
@@ -3519,6 +3615,7 @@ function toggleCalendarPanel() {
 }
 
 function selectRecordDate(dateKey, habitId = elements.habitSelect.value) {
+  saveCurrentRecordDrafts();
   selectedCalendarDate = dateKey;
   calendarCursor = new Date(`${dateKey}T00:00:00`);
   elements.habitSelect.value = habitId;
@@ -3794,6 +3891,14 @@ function buildMinimumSuggestionText(habit, suggestedMinimum) {
 
 function getCheckIn(date, habitId) {
   return state.checkIns.find((checkIn) => checkIn.date === date && checkIn.habitId === habitId);
+}
+
+function getDraftCheckIn(date, habitId) {
+  return state.drafts.find((checkIn) => checkIn.date === date && checkIn.habitId === habitId);
+}
+
+function removeDraftCheckIn(date, habitId) {
+  state.drafts = state.drafts.filter((checkIn) => checkIn.date !== date || checkIn.habitId !== habitId);
 }
 
 function findHabit(habitId) {
