@@ -1795,6 +1795,33 @@ function saveCurrentRecordDrafts() {
   saveState();
 }
 
+// NOTE: 記録日を選び直しても、画面上の結果・メモを新しい記録日の下書きとして引き継ぐ。
+// 元の日付の保存済み記録や下書きは削除せず、日付の間違いに気付いた後でも入力内容を保ったまま保存できるようにする。
+function carryCurrentRecordDraftsToDate(targetDateKey) {
+  const currentRecordDateKey = getRecordDateKey();
+  if (targetDateKey === currentRecordDateKey) {
+    saveCurrentRecordDrafts();
+    return;
+  }
+
+  saveCurrentRecordDrafts();
+  const currentRecords = collectMultiHabitRecords(currentRecordDateKey);
+  currentRecords.forEach(({ habit, checkIn }) => {
+    const carriedCheckIn = {
+      ...checkIn,
+      date: targetDateKey,
+    };
+    const targetSavedCheckIn = getCheckIn(targetDateKey, habit.id);
+
+    if (shouldKeepDraftCheckIn(carriedCheckIn, targetSavedCheckIn)) {
+      upsertByDateAndHabit(state.drafts, carriedCheckIn);
+    } else {
+      removeDraftCheckIn(targetDateKey, habit.id);
+    }
+  });
+  saveState();
+}
+
 function saveMultiHabitRecordDraft(card, recordDateKey = getRecordDateKey(), shouldSaveState = true) {
   if (!card) return;
   const habit = findHabit(card.dataset.habitId);
@@ -3615,7 +3642,7 @@ function toggleCalendarPanel() {
 }
 
 function selectRecordDate(dateKey, habitId = elements.habitSelect.value) {
-  saveCurrentRecordDrafts();
+  carryCurrentRecordDraftsToDate(dateKey);
   selectedCalendarDate = dateKey;
   calendarCursor = new Date(`${dateKey}T00:00:00`);
   elements.habitSelect.value = habitId;
