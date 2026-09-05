@@ -41,15 +41,15 @@
 }
 
 html {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-y: auto;
 }
 
 body {
   margin: 0;
-  height: 100%;
+  min-height: 100%;
   min-width: 320px;
-  overflow: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 18% 0%, rgba(255, 201, 92, 0.2), transparent 30%),
     radial-gradient(circle at 92% 12%, rgba(58, 127, 192, 0.18), transparent 28%),
@@ -69,14 +69,11 @@ textarea {
 
 .app-shell {
   width: min(1120px, calc(100% - 32px));
-  height: 100dvh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: 18px 0 28px;
-  /* The app shell owns scrolling so trackpads work reliably in the in-app browser. */
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-gutter: stable;
-  -webkit-overflow-scrolling: touch;
+  /* NOTE: ページ全体をスクロール対象にして、フォーム枠の外でもスクロールできるようにする。 */
+  overflow: visible;
 }
 
 .topbar {
