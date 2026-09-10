@@ -1,3 +1,4 @@
+/* styles.css【修正】太田の習慣コーチ全体と、保存済み記録の編集画面の表示・操作感を定義します。編集画面は枠の内外を問わず、上から下までスクロールできるようにします。 */
 :root {
   color-scheme: light;
   --bg: #f7f8ee;
@@ -1892,10 +1893,16 @@ fieldset {
 
 .record-edit-dialog {
   width: min(780px, 100%);
-  max-height: calc(100dvh - 36px);
+  /* NOTE: ダイアログ内のスクロールをやめ、画面全体を覆う編集モーダルを一つのスクロール領域にする。 */
+  max-height: none;
   min-height: min-content;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: visible;
+}
+
+.record-edit-modal {
+  /* NOTE: 編集フォームが長くても、枠の外を含むモーダル全体で上から下まで操作できるようにする。 */
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .record-edit-form {
@@ -3002,7 +3009,6 @@ fieldset {
   }
 
   .record-edit-dialog {
-    max-height: calc(100dvh - 24px);
     padding: 12px;
   }
 
