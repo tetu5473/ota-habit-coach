@@ -1,5 +1,5 @@
 // app.js【修正】日ごとの習慣記録と、保存前の入力途中データをブラウザ内に保持する画面処理です。
-// 日付を切り替えても入力途中の内容を復元できるようにします。
+// 日付を切り替えても入力途中の内容を復元し、メモ欄では長文も保持できるようにします。
 const STORAGE_KEY = "otaHabitCoach:v2";
 const TEST_CHECKLIST_STORAGE_KEY = "otaHabitCoach:testChecklist:v1";
 const API_BASE = "";
@@ -1163,7 +1163,8 @@ function renderMultiHabitRecordForms() {
               </label>
               <p class="note-tone-help">${escapeHtml(noteToneHelp[noteTone])}</p>
             </div>
-            <textarea class="multi-note" data-tone="${escapeHtml(noteTone)}" maxlength="2000" placeholder="この習慣について残したいこと">${escapeHtml(note)}</textarea>
+            <!-- NOTE: 貼り付けた長文メモを途中で切らないため、maxlength は設定しない。 -->
+            <textarea class="multi-note" data-tone="${escapeHtml(noteTone)}" placeholder="この習慣について残したいこと">${escapeHtml(note)}</textarea>
             <div class="note-suggestion-box" aria-live="polite"></div>
           </div>
         </div>
@@ -2711,7 +2712,8 @@ function buildRecordEditItemHtml(record) {
           </span>
           <p class="note-tone-help">${escapeHtml(noteToneHelp[noteTone])}</p>
         </div>
-        <textarea class="record-edit-note" data-tone="${escapeHtml(noteTone)}" rows="4" maxlength="2000" placeholder="この習慣について残したいこと">${escapeHtml(record.note || "")}</textarea>
+        <!-- NOTE: 貼り付けた長文メモを途中で切らないため、maxlength は設定しない。 -->
+        <textarea class="record-edit-note" data-tone="${escapeHtml(noteTone)}" rows="4" placeholder="この習慣について残したいこと">${escapeHtml(record.note || "")}</textarea>
       </label>
     </article>
   `;

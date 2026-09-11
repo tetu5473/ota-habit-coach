@@ -1,3 +1,4 @@
+<!-- index.html【修正】太田の習慣コーチの画面構造を定義します。メモ欄は長文の貼り付け内容も途中で切らずに保持します。 -->
 <!doctype html>
 <html lang="ja">
   <head>
@@ -170,7 +171,8 @@
               <div class="voice-field">
                 <label for="note">ひとことメモ</label>
                 <div class="input-with-action">
-                  <textarea id="note" rows="4" maxlength="2000" placeholder="今日の自分に残したいこと。長めの振り返りも入力できます"></textarea>
+                  <!-- NOTE: 貼り付けた長文メモを途中で切らないため、maxlength は設定しません。 -->
+                  <textarea id="note" rows="4" placeholder="今日の自分に残したいこと。長めの振り返りも入力できます"></textarea>
                   <button class="voice-button" type="button" data-voice-target="note" aria-label="ひとことメモを音声入力" title="ひとことメモを音声入力">
                     <svg aria-hidden="true"><use href="#icon-mic"></use></svg>
                     <span class="sr-only">ひとことメモを音声入力</span>

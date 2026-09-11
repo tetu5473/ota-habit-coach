@@ -1,3 +1,5 @@
+// test/smoke.test.mjs【修正】太田の習慣コーチの画面配信と保存APIを確認するスモークテストです。
+// メモ欄の長文貼り付けが文字数上限で切られないことも確認します。
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -67,6 +69,18 @@ test("アプリ画面と必要なファイルを配信できる", async () => {
     const response = await fetch(`${baseUrl}${path}`);
     assert.equal(response.status, 200, `${path} should be available`);
   }
+});
+
+test("メモ欄は長文を貼り付けても文字数上限で切られない", async () => {
+  // NOTE: 日常入力・一覧編集・保存済み記録の編集で同じ上限を再び設定しないようにする。
+  const pageResponse = await fetch(`${baseUrl}/`);
+  const pageHtml = await pageResponse.text();
+  assert.doesNotMatch(pageHtml, /id="note"[^>]*maxlength=/);
+
+  const appResponse = await fetch(`${baseUrl}/app.js`);
+  const appScript = await appResponse.text();
+  assert.doesNotMatch(appScript, /class="multi-note"[^>]*maxlength=/);
+  assert.doesNotMatch(appScript, /class="record-edit-note"[^>]*maxlength=/);
 });
 
 test("読み取りAPIが安全な初期状態を返す", async () => {
