@@ -1,4 +1,4 @@
-/* styles.css【修正】太田の習慣コーチ全体と、保存済み記録の編集画面の表示・操作感を定義します。編集画面は枠の内外を問わず、上から下までスクロールできるようにします。 */
+/* styles.css【修正】習慣コーチの表示・操作感を定義します。送信プレビューのPDCA見出し・本文の余白をLINEレポートとそろえます。 */
 :root {
   color-scheme: light;
   --bg: #f7f8ee;
@@ -1776,8 +1776,8 @@ fieldset {
 }
 
 .line-report-preview .report-preview-item {
-  margin-top: 2px;
-  padding: 4px 8px;
+  margin-top: 8px;
+  padding: 0;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
 }
@@ -1825,23 +1825,35 @@ fieldset {
 
 .line-report-preview .report-preview-note-heading {
   display: block;
-  margin-top: 8px;
-  padding: 2px 6px;
+  margin-top: 20px;
+  padding: 0;
   border-radius: 8px;
   color: var(--blue);
   font-size: 0.88rem;
 }
 
 .line-report-preview .report-preview-note {
-  margin-top: 2px;
+  margin-top: 4px;
   border-radius: 8px;
-  padding: 3px 8px;
-  padding-left: 8px;
+  padding: 0;
   color: #35463c;
 }
 
 .line-report-preview .report-preview-spacer {
-  height: 8px;
+  height: 12px;
+}
+
+/* 見出しと直後の本文は一組として見せ、前の段落とは20px空ける。 */
+.line-report-preview .report-preview-item,
+.line-report-preview .report-preview-note,
+.line-report-preview .report-preview-note-heading {
+  font-size: 14px;
+  line-height: 18px;
+}
+
+.line-report-preview .report-preview-note-heading + .report-preview-item,
+.line-report-preview .report-preview-note-heading + .report-preview-note {
+  margin-top: 4px;
 }
 
 .report-preview-modal[hidden] {

@@ -1,5 +1,5 @@
 // test/smoke.test.mjs【修正】太田の習慣コーチの画面配信と保存APIを確認するスモークテストです。
-// メモ欄の長文貼り付けが文字数上限で切られないことも確認します。
+// 長文メモの保持と、LINEに送信せず検査できるPDCAレイアウトも確認します。
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -36,6 +36,9 @@ before(async () => {
       GOOGLE_SCRIPT_EMAIL_WEBHOOK_URL: "",
       RESEND_API_KEY: "",
       EMAIL_FROM: "",
+      // ローカルの設定があってもテスト記録を外部の保存先へ送らない。
+      PERSISTENT_STORE_WEBHOOK_URL: "",
+      REMOTE_SYNC_BASE_URL: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -179,6 +182,37 @@ test("保存済み報告の内容と日付をまとめて更新できる", async
   assert.equal(records.filter((record) => record.date === correctedDate).length, 2);
   assert.equal(records.find((record) => record.habitId === "strength")?.status, "partial");
   assert.equal(records.find((record) => record.habitId === "learning")?.learningMinutes, "60");
+});
+
+test("LINEレポートは空行に依存せずPDCA見出しと本文の間隔をそろえる", async () => {
+  // 空行なし・連続空行・CRLFの入力でも、同じ見出し余白で全文を保持する。
+  const note = "P：計画\r\n・計画の本文\r\nD：実行\r\n\r\n・実行の本文\r\n・追加の作業\r\n\r\nC：確認\r\n確認できた内容\r\nA：改善\r\n・次回の作業";
+  const date = "2026-07-12";
+  await fetch(`${baseUrl}/api/records/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ records: [{ date, habitId: "learning", habitTitle: "学習", status: "done", note }] }),
+  });
+  const logsBefore = await (await fetch(`${baseUrl}/api/reports/logs`)).json();
+  const response = await fetch(`${baseUrl}/api/reports/daily/preview?date=${date}&format=flex`);
+  assert.equal(response.status, 200);
+  const { flexMessage } = await response.json();
+  const contents = flexMessage.contents.body.contents;
+  for (const heading of ["P：計画", "D：実行", "C：確認", "A：改善"]) {
+    const headingIndex = contents.findIndex((component) => component.text === heading);
+    assert.ok(headingIndex >= 0, heading);
+    assert.equal(contents[headingIndex].margin, "20px", heading);
+    assert.equal(contents[headingIndex + 1].margin, "4px", heading);
+    assert.equal(contents[headingIndex + 1].lineSpacing, "4px", heading);
+  }
+  assert.equal(contents.find((component) => component.text === "・追加の作業").margin, "8px");
+  for (const line of note.split(/\r?\n/).filter(Boolean)) {
+    assert.ok(contents.some((component) => component.text === line), line);
+  }
+  assert.ok(contents.every((component) => component.type !== "text" || component.text.trim()));
+  assert.deepEqual(await (await fetch(`${baseUrl}/api/reports/logs`)).json(), logsBefore);
+  const emptyPreview = await (await fetch(`${baseUrl}/api/reports/daily/preview?date=2000-01-01&format=flex`)).json();
+  assert.equal(emptyPreview.flexMessage, null);
 });
 
 test("自分だけのLINEテスト送信として保存できる", async () => {

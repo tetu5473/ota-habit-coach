@@ -1,5 +1,5 @@
 // app.js【修正】日ごとの習慣記録と、保存前の入力途中データをブラウザ内に保持する画面処理です。
-// 日付を切り替えても入力途中の内容を復元し、メモ欄では長文も保持できるようにします。
+// 日付を切り替えても入力途中の内容を復元し、送信プレビューのPDCA余白を統一します。
 const STORAGE_KEY = "otaHabitCoach:v2";
 const TEST_CHECKLIST_STORAGE_KEY = "otaHabitCoach:testChecklist:v1";
 const API_BASE = "";
@@ -3086,11 +3086,19 @@ function handlePageTabClick(event) {
 // Renders the plain LINE report as a light review card before the user sends it.
 function buildLineReportPreviewHtml(text) {
   let activeNoteTone = "normal";
+  // 見出しに隣接する空行はCSSの一定余白へ置き換え、二重の空白を防ぐ。
+  const lines = text.split(/\r?\n/).map((line) => line.trim());
+  const isNoteHeading = (line) => /^(?:[PDCA]\s*[:：]\s*)?(計画|実行|確認|改善)(?:\s|[:：]|$)/i.test(line || "");
   const body = text
     .split(/\r?\n/)
-    .map((line) => {
+    .map((line, lineIndex) => {
       const trimmed = line.trim();
-      if (!trimmed) return '<div class="report-preview-spacer" aria-hidden="true"></div>';
+      if (!trimmed) {
+        const previousLine = lines.slice(0, lineIndex).filter(Boolean).at(-1);
+        const nextLine = lines.slice(lineIndex + 1).find(Boolean);
+        if (isNoteHeading(previousLine) || isNoteHeading(nextLine) || !lines[lineIndex - 1]) return "";
+        return '<div class="report-preview-spacer" aria-hidden="true"></div>';
+      }
       if (/^【.+】$/.test(trimmed)) {
         activeNoteTone = "normal";
         return `<h3>${escapeHtml(trimmed.replace(/[【】]/g, ""))}</h3>`;
@@ -3109,7 +3117,7 @@ function buildLineReportPreviewHtml(text) {
         const itemTone = inlineTone ? getNoteToneKeyFromLabel(inlineTone[1]) : "normal";
         return `<p class="report-preview-item" data-tone="${escapeHtml(itemTone)}">${escapeHtml(trimmed)}</p>`;
       }
-      if (/^(?:[PDCA]\s*[:：]\s*)?(計画|実行|確認|改善)/.test(trimmed)) {
+      if (isNoteHeading(trimmed)) {
         return `<strong class="report-preview-note-heading" data-tone="${escapeHtml(activeNoteTone)}">${escapeHtml(trimmed)}</strong>`;
       }
       return `<p class="report-preview-note" data-tone="${escapeHtml(activeNoteTone)}">${escapeHtml(trimmed)}</p>`;

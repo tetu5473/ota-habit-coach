@@ -1,3 +1,5 @@
+// server.mjs【修正】習慣記録の保存とLINE・メール報告を処理します。
+// LINEレポートの見出し・本文の間隔をそろえ、送信せずに同じレイアウトを検査できます。
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -231,10 +233,13 @@ async function handleApi(request, response, url) {
     const db = await readDb();
     const date = url.searchParams.get("date") || formatDateKey(new Date());
     const records = db.dailyRecords.filter((record) => record.date === date);
+    // 送信時と同じ生成処理を使い、プレビュー確認では送信や保存を行わない。
+    const text = records.length ? buildDailyReportMessage(db, date, url.searchParams.get("style") || "standard") : "";
     sendJson(response, 200, {
       date,
       recordCount: records.length,
-      text: records.length ? buildDailyReportMessage(db, date, url.searchParams.get("style") || "standard") : "",
+      text,
+      ...(url.searchParams.get("format") === "flex" ? { flexMessage: text ? buildLineReportFlexMessage(text) : null } : {}),
     });
     return;
   }
@@ -1196,7 +1201,7 @@ function buildLineReportFlexMessage(text) {
       body: {
         type: "box",
         layout: "vertical",
-        spacing: "sm",
+        spacing: "none",
         paddingAll: "18px",
         contents: buildLineReportFlexContents(text),
       },
@@ -1204,14 +1209,26 @@ function buildLineReportFlexMessage(text) {
   };
 }
 
-// Converts the plain report text into compact Flex Message rows.
+// 空行の有無に左右されず、PDCA見出し前20px・直後4pxで統一する。
 function buildLineReportFlexContents(text) {
+  let followsNoteHeading = false;
+  let hasParagraphBreak = false;
   return text
     .split(/\r?\n/)
     .slice(1)
     .map((line) => line.trim())
-    .filter(Boolean)
     .flatMap((line) => {
+      // 一般段落の空行は余白に置き換え、空のLINEテキスト部品を作らない。
+      if (!line) {
+        hasParagraphBreak = true;
+        return [];
+      }
+      const isNoteHeading = /^(?:[PDCA]\s*[:：]\s*)?(計画|実行|確認|改善)(?:\s|[:：]|$)/i.test(line);
+      let bodyMargin = line.startsWith("・") ? "8px" : "4px";
+      if (hasParagraphBreak) bodyMargin = "12px";
+      if (followsNoteHeading) bodyMargin = "4px";
+      followsNoteHeading = isNoteHeading;
+      hasParagraphBreak = false;
       if (/^【.+】$/.test(line)) {
         return [{
           type: "text",
@@ -1237,7 +1254,7 @@ function buildLineReportFlexContents(text) {
           },
         ];
       }
-      if (/^(?:[PDCA]\s*[:：]\s*)?(計画|実行|確認|改善)/.test(line)) {
+      if (isNoteHeading) {
         return [{
           type: "text",
           text: line,
@@ -1245,7 +1262,8 @@ function buildLineReportFlexContents(text) {
           size: "sm",
           weight: "bold",
           wrap: true,
-          margin: "sm",
+          margin: "20px",
+          lineSpacing: "4px",
         }];
       }
       return [{
@@ -1254,7 +1272,8 @@ function buildLineReportFlexContents(text) {
         color: line.startsWith("・") ? "#2D3D33" : "#3E4C43",
         size: "sm",
         wrap: true,
-        margin: line.startsWith("・") ? "xs" : "none",
+        margin: bodyMargin,
+        lineSpacing: "4px",
       }];
     });
 }
