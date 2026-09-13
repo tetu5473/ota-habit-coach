@@ -1,5 +1,5 @@
 // test/smoke.test.mjs【修正】太田の習慣コーチの画面配信と保存APIを確認するスモークテストです。
-// 長文メモの保持と、LINEに送信せず検査できるPDCAレイアウトも確認します。
+// 長文メモの保持と、送信区分・PDCAレイアウトを実送信なしで確認します。
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -210,6 +210,15 @@ test("LINEレポートは空行に依存せずPDCA見出しと本文の間隔を
     assert.ok(contents.some((component) => component.text === line), line);
   }
   assert.ok(contents.every((component) => component.type !== "text" || component.text.trim()));
+  assert.deepEqual(await (await fetch(`${baseUrl}/api/reports/logs`)).json(), logsBefore);
+  // 本文を変えずにテスト／通常の表示を切り替え、通知一覧でも区分を識別できる。
+  const selfPreview = await (await fetch(`${baseUrl}/api/reports/daily/preview?date=${date}&format=flex&target=student`)).json();
+  assert.match(selfPreview.flexMessage.altText, /テスト送信｜自分だけ/);
+  assert.equal(selfPreview.flexMessage.contents.header.contents[0].text, "テスト送信｜自分だけ");
+  assert.equal(selfPreview.flexMessage.contents.header.contents[2].text, "講師・メールには送信しません");
+  assert.match(flexMessage.altText, /通常送信｜講師＋自分/);
+  assert.equal(flexMessage.contents.header.contents[0].text, "通常送信｜講師＋自分");
+  assert.deepEqual(selfPreview.flexMessage.contents.body, flexMessage.contents.body);
   assert.deepEqual(await (await fetch(`${baseUrl}/api/reports/logs`)).json(), logsBefore);
   const emptyPreview = await (await fetch(`${baseUrl}/api/reports/daily/preview?date=2000-01-01&format=flex`)).json();
   assert.equal(emptyPreview.flexMessage, null);

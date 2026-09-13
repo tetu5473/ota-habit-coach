@@ -1,5 +1,5 @@
 // app.js【修正】日ごとの習慣記録と、保存前の入力途中データをブラウザ内に保持する画面処理です。
-// 日付を切り替えても入力途中の内容を復元し、送信プレビューのPDCA余白を統一します。
+// 入力途中の内容を復元し、送信履歴には送信区分と宛先ごとの結果を表示します。
 const STORAGE_KEY = "otaHabitCoach:v2";
 const TEST_CHECKLIST_STORAGE_KEY = "otaHabitCoach:testChecklist:v1";
 const API_BASE = "";
@@ -3493,7 +3493,7 @@ function renderReportLogs(logs) {
 
   logs.slice(0, 6).forEach((log) => {
     const targetLabel = formatReportTarget(log.target);
-    const statusLabel = log.sent ? "送信済み" : "未送信・保留";
+    const statusLabel = buildReportLogStatusLabel(log);
     const reason = log.reason || log.line?.reason || "";
     const lineDetail = buildReportLogLineDetail(log);
     const item = document.createElement("article");
@@ -3513,7 +3513,7 @@ function renderReportLogs(logs) {
       <div class="report-log-actions">
         <button class="ghost-button compact-button" type="button" data-report-log-action="preview">文面確認</button>
         <button class="ghost-button compact-button self-test-button" type="button" data-report-log-action="self-test">自分だけ再送</button>
-        <button class="ghost-button compact-button" type="button" data-report-log-action="resend">本番再送</button>
+        <button class="ghost-button compact-button" type="button" data-report-log-action="resend">講師＋自分へ再送</button>
       </div>
     `;
     elements.reportLogList.append(item);
@@ -3521,14 +3521,31 @@ function renderReportLogs(logs) {
 }
 
 function buildReportLogLineDetail(log) {
-  if (log.target === "student") {
-    return log.lineSent ? "LINE: 自分だけに送信済み" : "LINE: 自分だけ送信は未完了";
-  }
-  const parts = [];
-  if (log.coachLineSent || log.lineSent) parts.push("講師LINE");
-  if (log.studentLineSent) parts.push("自分LINE");
-  if (log.emailSent) parts.push("メール");
-  return parts.length ? `送信済み: ${parts.join("、")}` : "送信先への送信は未完了または確認待ち";
+  // 全体の成功フラグを講師への成功と見なさず、宛先別に保存された結果だけを表示する。
+  const isSelfTest = log.target === "student";
+  return [
+    `自分のLINE：${formatReportDeliveryResult(log.studentLineSent)}`,
+    `講師のLINE：${formatReportDeliveryResult(log.coachLineSent, isSelfTest)}`,
+    `メール：${formatReportDeliveryResult(log.emailSent, isSelfTest)}`,
+  ].join("\n");
+}
+
+// 古い履歴の欠落値は不明とし、明示的な成功記録があれば区分よりも優先する。
+function formatReportDeliveryResult(sent, excluded = false) {
+  if (sent === true) return "送信成功";
+  if (excluded) return "送信対象外";
+  if (sent === false) return "送信なし・未完了";
+  return "不明（結果の記録なし）";
+}
+
+// LINE全体の結果を、実際に必要な宛先の記録から判定する。
+function buildReportLogStatusLabel(log) {
+  if (!["student", "coach_and_student"].includes(log.target)) return "送信区分を確認してください";
+  const results = log.target === "student" ? [log.studentLineSent] : [log.coachLineSent, log.studentLineSent];
+  if (results.every((result) => result === true)) return "LINE送信完了";
+  if (results.some((result) => result === true)) return "LINEは一部のみ送信";
+  if (results.every((result) => result === false)) return "LINE送信は未完了";
+  return "LINE送信結果は不明";
 }
 
 function handleReportLogAction(event) {
@@ -3559,6 +3576,7 @@ function formatReportLogReason(reason) {
     coach_not_linked: "講師連携が未確認です。",
     line_not_configured: "LINE設定が未完了です。",
     send_failed: "LINE送信に失敗しました。",
+    test_mode: "自分だけのテスト送信です。",
   };
   return labels[reason] || String(reason);
 }
@@ -3573,7 +3591,7 @@ function renderSubmissionSummary() {
   }
   if (elements.latestReportLog) {
     elements.latestReportLog.textContent = latestLog
-      ? `${formatShortDate(latestLog.date)} / ${formatReportTarget(latestLog.target)} / ${latestLog.sent ? "送信済み" : "保留"}`
+      ? `${formatShortDate(latestLog.date)} / ${formatReportTarget(latestLog.target)} / ${buildReportLogStatusLabel(latestLog)}`
       : "まだ送信ログはありません。";
   }
   if (elements.submissionTestStatus) {
@@ -3584,9 +3602,9 @@ function renderSubmissionSummary() {
 }
 
 function formatReportTarget(target) {
-  if (target === "student") return "自分だけ";
-  if (target === "coach_and_student") return "講師と自分";
-  return "通常送信";
+  if (target === "student") return "テスト送信｜自分だけ";
+  if (target === "coach_and_student") return "通常送信｜講師＋自分";
+  return "送信区分不明（過去の記録）";
 }
 
 function formatCreatedAt(value) {

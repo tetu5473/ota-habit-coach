@@ -1,5 +1,5 @@
 // server.mjs【修正】習慣記録の保存とLINE・メール報告を処理します。
-// LINEレポートの見出し・本文の間隔をそろえ、送信せずに同じレイアウトを検査できます。
+// LINEレポートに送信区分を表示し、送信せずに同じレイアウトを検査できます。
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -235,11 +235,12 @@ async function handleApi(request, response, url) {
     const records = db.dailyRecords.filter((record) => record.date === date);
     // 送信時と同じ生成処理を使い、プレビュー確認では送信や保存を行わない。
     const text = records.length ? buildDailyReportMessage(db, date, url.searchParams.get("style") || "standard") : "";
+    const reportTarget = url.searchParams.get("target") === "student" ? "student" : "coach_and_student";
     sendJson(response, 200, {
       date,
       recordCount: records.length,
       text,
-      ...(url.searchParams.get("format") === "flex" ? { flexMessage: text ? buildLineReportFlexMessage(text) : null } : {}),
+      ...(url.searchParams.get("format") === "flex" ? { flexMessage: text ? buildLineReportFlexMessage(text, reportTarget) : null } : {}),
     });
     return;
   }
@@ -779,7 +780,8 @@ async function sendLineDailyReportToStudent(student, text) {
   }
 
   try {
-    await pushLineMessage(student.lineUserId, text);
+    // テスト送信の表示は宛先と同じ分岐で決め、講師向け送信と区別する。
+    await pushLineMessage(student.lineUserId, text, "student");
     return { sent: true, recipients: { student: { sent: true } } };
   } catch (error) {
     console.error("LINE self-test send failed:", error);
@@ -807,7 +809,7 @@ async function sendLineDailyReport(coach, student, text) {
 
   try {
     for (const recipient of recipients) {
-      await pushLineMessage(recipient.lineUserId, text);
+      await pushLineMessage(recipient.lineUserId, text, "coach_and_student");
       results[recipient.key] = { sent: true };
     }
     if (!student?.lineUserId) {
@@ -1156,23 +1158,25 @@ async function replyLineMessage(replyToken, text) {
   });
 }
 
-async function pushLineMessage(to, text) {
+async function pushLineMessage(to, text, reportTarget) {
   await callLineApi("https://api.line.me/v2/bot/message/push", {
     to,
-    messages: [buildLineReportFlexMessage(text)],
+    messages: [buildLineReportFlexMessage(text, reportTarget)],
   });
 }
 
-// Sends a light-background LINE Flex Message so the report is readable in dark mode.
-function buildLineReportFlexMessage(text) {
+// 届いたレポートと通知一覧の両方に送信区分を明記する。配達結果は送信履歴で確認する。
+function buildLineReportFlexMessage(text, reportTarget) {
+  const isSelfTest = reportTarget === "student";
+  const targetLabel = isSelfTest ? "テスト送信｜自分だけ" : "通常送信｜講師＋自分";
   return {
     type: "flex",
-    altText: "太田の習慣レポート",
+    altText: `${targetLabel}：太田の習慣レポート`,
     contents: {
       type: "bubble",
       size: "mega",
       styles: {
-        header: { backgroundColor: "#E8F8E7" },
+        header: { backgroundColor: isSelfTest ? "#EAF3FF" : "#E8F8E7" },
         body: { backgroundColor: "#FFFEF9" },
       },
       header: {
@@ -1182,10 +1186,11 @@ function buildLineReportFlexMessage(text) {
         contents: [
           {
             type: "text",
-            text: "太田習慣コーチからの報告",
-            color: "#24734D",
-            size: "sm",
+            text: targetLabel,
+            color: isSelfTest ? "#245F91" : "#24734D",
+            size: "md",
             weight: "bold",
+            wrap: true,
           },
           {
             type: "text",
@@ -1193,6 +1198,14 @@ function buildLineReportFlexMessage(text) {
             color: "#1F3327",
             size: "xl",
             weight: "bold",
+            wrap: true,
+            margin: "sm",
+          },
+          {
+            type: "text",
+            text: isSelfTest ? "講師・メールには送信しません" : "送信先：講師のLINE・自分のLINE",
+            color: "#3E4C43",
+            size: "sm",
             wrap: true,
             margin: "sm",
           },
