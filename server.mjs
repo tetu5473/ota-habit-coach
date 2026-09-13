@@ -1479,7 +1479,8 @@ async function restoreDbFromPersistentStore() {
     const response = await fetch(persistentStoreWebhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(10000),
+      // 保存先の起動に10秒以上かかっても、再デプロイ時の履歴読込を途中で打ち切らない。
+      signal: AbortSignal.timeout(45000),
       body: JSON.stringify({
         app: "ota-habit-coach",
         action: "load",
